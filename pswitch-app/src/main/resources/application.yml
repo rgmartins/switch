@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: switch
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/switch
+    redis:
+      host: localhost
+      port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+
+server:
+  port: 8080
+
+# TODO: portar NetworkConfig (hosts/portas/timeouts dos servidores TCP raw:
+# inbound POS, outbound bandeira) — no projeto original isso é uma collection
+# no MongoDB, carregada no startup pelo NetworkModule.

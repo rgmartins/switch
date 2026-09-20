@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.guzula.pswitch</groupId>
+    <artifactId>switch</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>pswitch-app</artifactId>
+  <packaging>jar</packaging>
+  <name>pswitch-app</name>
+  <description>Aplicação Spring Boot executável: junta todos os módulos, application.yml, admin API. Referência: src/app.module.ts + src/main.ts em guzula-switch.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.guzula.pswitch</groupId>
+      <artifactId>pswitch-shared</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.guzula.pswitch</groupId>
+      <artifactId>pswitch-transport</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.guzula.pswitch</groupId>
+      <artifactId>pswitch-registry</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.guzula.pswitch</groupId>
+      <artifactId>pswitch-external</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.guzula.pswitch</groupId>
+      <artifactId>pswitch-comum</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.guzula.pswitch</groupId>
+      <artifactId>pswitch-nucleo</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.guzula.pswitch</groupId>
+      <artifactId>pswitch-brand-visa</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.guzula.pswitch</groupId>
+      <artifactId>pswitch-capture-pos</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.guzula.pswitch</groupId>
+      <artifactId>pswitch-liquidacao</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>switch</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <mainClass>com.guzula.pswitch.app.SwitchApplication</mainClass>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

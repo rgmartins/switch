@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.guzula.pswitch</groupId>
+    <artifactId>switch</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>pswitch-brand-visa</artifactId>
+  <packaging>jar</packaging>
+  <name>pswitch-brand-visa</name>
+  <description>Conector Visa (parser/packer + envio outbound). Implementa BrandHandler (pswitch-nucleo). Referência: src/modules/brand/visa em guzula-switch.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.guzula.pswitch</groupId>
+      <artifactId>pswitch-shared</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.guzula.pswitch</groupId>
+      <artifactId>pswitch-transport</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.guzula.pswitch</groupId>
+      <artifactId>pswitch-nucleo</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>
