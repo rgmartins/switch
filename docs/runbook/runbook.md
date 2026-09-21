@@ -75,6 +75,14 @@ $frame[1] = 0x0A
 $stream = $client.GetStream()
 $stream.Write($frame, 0, $frame.Length)
 $stream.Flush()
+
+$responseHeader = [byte[]]::new(2)
+[void]$stream.Read($responseHeader, 0, $responseHeader.Length)
+$responseLength = ($responseHeader[0] -shl 8) -bor $responseHeader[1]
+$responsePayload = [byte[]]::new($responseLength)
+[void]$stream.Read($responsePayload, 0, $responsePayload.Length)
+[System.Text.Encoding]::UTF8.GetString($responsePayload)
+
 $client.Close()
 ```
 
@@ -84,4 +92,10 @@ No console da aplicação deverá aparecer:
 POS recebeu: OLA SWITCH
 ```
 
-Os dois primeiros bytes (`00 0A`) são um inteiro binário sem sinal, em ordem de rede (big-endian), e informam que o payload possui 10 bytes. O transporte aguarda o frame completo, remove esse prefixo e entrega ao módulo POS somente `OLA SWITCH`.
+O cliente também deverá receber:
+
+```text
+recebi: OLA SWITCH, e estou dizendo que foi ok
+```
+
+Os dois primeiros bytes (`00 0A`) são um inteiro binário sem sinal, em ordem de rede (big-endian), e informam que o payload possui 10 bytes. O transporte aguarda o frame completo, remove esse prefixo e entrega ao módulo POS somente `OLA SWITCH`. A resposta recebe o mesmo framing e é enviada pela mesma conexão.

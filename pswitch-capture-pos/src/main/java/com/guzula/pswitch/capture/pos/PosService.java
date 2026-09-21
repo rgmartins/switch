@@ -6,6 +6,7 @@ import com.guzula.pswitch.shared.port.InboundPayloadHandler;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.util.function.Consumer;
 
 /**
  * Referência: pos.service.ts (guzula-switch).
@@ -29,8 +30,11 @@ public class PosService implements ChannelResponder, InboundPayloadHandler {
     }
 
     @Override
-    public void handleInbound(byte[] payload) {
+    public void handleInbound(byte[] payload, Consumer<byte[]> responder) {
         String message = new String(payload, StandardCharsets.UTF_8);
         System.out.println("POS recebeu: " + message);
+
+        String response = "recebi: " + message + ", e estou dizendo que foi ok";
+        responder.accept(response.getBytes(StandardCharsets.UTF_8));
     }
 }

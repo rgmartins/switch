@@ -2,6 +2,7 @@ package com.guzula.pswitch.transport;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
@@ -13,6 +14,7 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -24,12 +26,12 @@ import java.util.function.Consumer;
  */
 public class TcpRawServer {
 
-    private final Consumer<byte[]> messageConsumer;
+    private final BiConsumer<byte[], Consumer<byte[]>> messageConsumer;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel serverChannel;
 
-    public TcpRawServer(Consumer<byte[]> messageConsumer) {
+    public TcpRawServer(BiConsumer<byte[], Consumer<byte[]>> messageConsumer) {
         this.messageConsumer = Objects.requireNonNull(messageConsumer);
     }
 
@@ -50,6 +52,7 @@ public class TcpRawServer {
                         protected void initChannel(SocketChannel channel) {
                             channel.pipeline().addLast(
                                     new LengthFieldFramerDecoder(),
+                                    new LengthFieldFramerEncoder(),
                                     new InboundMessageHandler(messageConsumer));
                         }
                     })
@@ -83,9 +86,9 @@ public class TcpRawServer {
 
     private static final class InboundMessageHandler extends SimpleChannelInboundHandler<ByteBuf> {
 
-        private final Consumer<byte[]> messageConsumer;
+        private final BiConsumer<byte[], Consumer<byte[]>> messageConsumer;
 
-        private InboundMessageHandler(Consumer<byte[]> messageConsumer) {
+        private InboundMessageHandler(BiConsumer<byte[], Consumer<byte[]>> messageConsumer) {
             this.messageConsumer = messageConsumer;
         }
 
@@ -93,7 +96,9 @@ public class TcpRawServer {
         protected void channelRead0(ChannelHandlerContext context, ByteBuf message) {
             byte[] bytes = new byte[message.readableBytes()];
             message.readBytes(bytes);
-            messageConsumer.accept(bytes);
+            messageConsumer.accept(
+                    bytes,
+                    response -> context.writeAndFlush(Unpooled.wrappedBuffer(response)));
         }
 
         @Override
