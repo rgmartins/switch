@@ -30,7 +30,6 @@ flowchart TB
     app --> transport
     app --> shared
 
-    capture --> transport
     capture --> comum
     capture --> nucleo
     capture --> shared
@@ -97,7 +96,7 @@ sequenceDiagram
     participant Visa as pswitch-brand-visa
     participant Rede as Rede Visa
 
-    Terminal->>TCP: mensagem ISO 8583 com framing BCD
+    Terminal->>TCP: mensagem ISO 8583 com tamanho binário de 2 bytes
     TCP->>POS: payload recebido
     POS->>POS: parse e mapeamento para CanonicalTransaction
     POS->>Comum: processa transação canônica
@@ -113,7 +112,7 @@ sequenceDiagram
     Nucleo->>POS: sendResponse via ChannelResponder
     POS->>POS: converte e empacota a resposta
     POS->>TCP: payload de resposta
-    TCP-->>Terminal: resposta ISO 8583 com framing BCD
+    TCP-->>Terminal: resposta ISO 8583 com tamanho binário de 2 bytes
 ```
 
 ## Leitura rápida
@@ -125,4 +124,3 @@ sequenceDiagram
 - `pswitch-nucleo` escolhe o adaptador de bandeira e retorna a resposta ao canal correto.
 - `pswitch-brand-visa` traduz e transporta mensagens específicas da Visa.
 - `pswitch-liquidacao` trata o fluxo assíncrono posterior de liquidação.
-

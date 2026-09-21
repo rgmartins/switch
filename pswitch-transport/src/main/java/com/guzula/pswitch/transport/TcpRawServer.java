@@ -19,9 +19,8 @@ import java.util.function.Consumer;
  * Servidor TCP inbound (recebe conexões de terminais POS / origem).
  * Referência: TcpRawServer em src/shared/transporters/tcp-raw.server.ts (guzula-switch).
  *
- * Nesta primeira implementação, cada bloco de bytes recebido é entregue ao
- * consumidor informado. Framing e interpretação da mensagem pertencem às
- * próximas etapas da implementação.
+ * O framing de transporte é resolvido antes da entrega: os dois bytes binários de
+ * tamanho são consumidos e apenas o payload completo chega ao consumidor.
  */
 public class TcpRawServer {
 
@@ -49,7 +48,9 @@ public class TcpRawServer {
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel channel) {
-                            channel.pipeline().addLast(new InboundMessageHandler(messageConsumer));
+                            channel.pipeline().addLast(
+                                    new LengthFieldFramerDecoder(),
+                                    new InboundMessageHandler(messageConsumer));
                         }
                     })
                     .childOption(ChannelOption.TCP_NODELAY, true);

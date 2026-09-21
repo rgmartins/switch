@@ -67,9 +67,13 @@ Com a aplicação em execução, abra outro PowerShell e envie uma mensagem para
 
 ```powershell
 $client = [System.Net.Sockets.TcpClient]::new('127.0.0.1', 9000)
-$bytes = [System.Text.Encoding]::UTF8.GetBytes('OLA SWITCH')
+$payload = [System.Text.Encoding]::UTF8.GetBytes('OLA SWITCH')
+$frame = [byte[]]::new($payload.Length + 2)
+$frame[0] = 0x00
+$frame[1] = 0x0A
+[System.Array]::Copy($payload, 0, $frame, 2, $payload.Length)
 $stream = $client.GetStream()
-$stream.Write($bytes, 0, $bytes.Length)
+$stream.Write($frame, 0, $frame.Length)
 $stream.Flush()
 $client.Close()
 ```
@@ -80,4 +84,4 @@ No console da aplicação deverá aparecer:
 POS recebeu: OLA SWITCH
 ```
 
-Neste primeiro passo, o servidor entrega ao módulo POS cada bloco de bytes recebido pelo TCP. A separação de mensagens e o framing BCD serão implementados posteriormente.
+Os dois primeiros bytes (`00 0A`) são um inteiro binário sem sinal, em ordem de rede (big-endian), e informam que o payload possui 10 bytes. O transporte aguarda o frame completo, remove esse prefixo e entrega ao módulo POS somente `OLA SWITCH`.

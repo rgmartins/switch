@@ -6,10 +6,10 @@ import io.netty.handler.codec.MessageToByteEncoder;
 
 /**
  * Codificador inverso do {@link LengthFieldFramerDecoder}: adiciona o prefixo
- * de comprimento em BCD antes do payload.
+ * de comprimento binário de 2 bytes, em ordem de rede, antes do payload.
  * Referência: LengthFieldFramer em src/shared/transporters/length-field-framer.ts (guzula-switch).
  *
- * TODO: portar a lógica de escrita do prefixo BCD.
+ * TODO: portar a lógica de escrita do prefixo binário.
  */
 public class LengthFieldFramerEncoder extends MessageToByteEncoder<ByteBuf> {
 

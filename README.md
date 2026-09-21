@@ -8,13 +8,13 @@ Referência de arquitetura: `C:\guzula\guzula-switch` (implementação em NestJS
 
 ```
 pswitch-shared      domínio canônico (CanonicalTransaction), codec ISO 8583, CobolCodec
-pswitch-transport   Netty: framing BCD length-prefixed, servidor TCP inbound, pool outbound
+pswitch-transport   Netty: framing binário length-prefixed, servidor TCP inbound, pool outbound
 pswitch-registry    registries: terminal / keyblock / bin
 pswitch-external    integrações: antifraude, HSM, histórico, tarifas, pré-autorização
 pswitch-comum       orquestra registries + HSM + antifraude antes do roteamento
 pswitch-nucleo      motor de roteamento por bandeira (portas BrandHandler / ChannelResponder)
 pswitch-brand-visa  conector Visa — implementa BrandHandler
-pswitch-capture-pos captura via terminal POS (TCP) — implementa ChannelResponder
+pswitch-capture-pos interpreta o payload do terminal POS — implementa ChannelResponder
 pswitch-liquidacao  liquidação/settlement via Kafka
 pswitch-app         aplicação Spring Boot executável (main, application.yml, admin API)
 ```
@@ -30,7 +30,7 @@ registry, external  → shared
 comum               → shared, registry, external
 nucleo              → shared, comum
 brand-visa          → shared, transport, nucleo
-capture-pos         → shared, transport, comum, nucleo
+capture-pos         → shared, comum, nucleo
 liquidacao          → shared
 app                 → todos
 ```
@@ -39,7 +39,7 @@ app                 → todos
 
 - Java 21, Maven (multi-módulo)
 - Spring Boot 3.3 (DI, MongoDB, Redis, Kafka)
-- Netty (camada de transporte TCP raw — framing BCD, igual ao `LengthFieldFramer` do original)
+- Netty (camada de transporte TCP raw — tamanho binário de 2 bytes em ordem de rede)
 - Codec ISO 8583 portado na mão (sem jPOS), pra manter paridade de comportamento com `iso-codec.ts`/`cobol-codec.ts`
 
 ## Build

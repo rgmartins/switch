@@ -7,16 +7,31 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import java.util.List;
 
 /**
- * Decodificador de frames com prefixo de comprimento em BCD (2 dígitos por byte),
- * espelhando o framing usado pelo terminal POS / bandeira.
+ * Decodificador de frames com prefixo binário de comprimento de 2 bytes,
+ * em ordem de rede (big-endian).
  * Referência: LengthFieldFramer em src/shared/transporters/length-field-framer.ts (guzula-switch).
  *
- * TODO: portar a lógica de leitura do prefixo BCD e extração do payload.
+ * O prefixo representa o tamanho do payload, sem incluir os próprios 2 bytes.
+ * Exemplo: 00 0A representa um payload de 10 bytes.
  */
 public class LengthFieldFramerDecoder extends ByteToMessageDecoder {
 
+    private static final int LENGTH_FIELD_SIZE = 2;
+
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
-        throw new UnsupportedOperationException("TODO: portar decode de length-field-framer.ts");
+        if (in.readableBytes() < LENGTH_FIELD_SIZE) {
+            return;
+        }
+
+        in.markReaderIndex();
+        int payloadLength = in.readUnsignedShort();
+
+        if (in.readableBytes() < payloadLength) {
+            in.resetReaderIndex();
+            return;
+        }
+
+        out.add(in.readRetainedSlice(payloadLength));
     }
 }
