@@ -13,6 +13,12 @@ spring:
 server:
   port: 8080
 
+pswitch:
+  pos:
+    tcp:
+      host: 0.0.0.0
+      port: 9000
+
 # TODO: portar NetworkConfig (hosts/portas/timeouts dos servidores TCP raw:
 # inbound POS, outbound bandeira) — no projeto original isso é uma collection
 # no MongoDB, carregada no startup pelo NetworkModule.

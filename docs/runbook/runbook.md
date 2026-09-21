@@ -60,3 +60,24 @@ Started SwitchApplication in X seconds
 ```
 
 Antes disso pode aparecer um erro de conexão com `localhost:27017` (MongoDB) — normal se não tiver um Mongo local rodando ainda; não derruba a aplicação.
+
+## 3. Testar o recebimento TCP do POS
+
+Com a aplicação em execução, abra outro PowerShell e envie uma mensagem para a porta `9000`:
+
+```powershell
+$client = [System.Net.Sockets.TcpClient]::new('127.0.0.1', 9000)
+$bytes = [System.Text.Encoding]::UTF8.GetBytes('OLA SWITCH')
+$stream = $client.GetStream()
+$stream.Write($bytes, 0, $bytes.Length)
+$stream.Flush()
+$client.Close()
+```
+
+No console da aplicação deverá aparecer:
+
+```text
+POS recebeu: OLA SWITCH
+```
+
+Neste primeiro passo, o servidor entrega ao módulo POS cada bloco de bytes recebido pelo TCP. A separação de mensagens e o framing BCD serão implementados posteriormente.

@@ -4,6 +4,8 @@ import com.guzula.pswitch.nucleo.ChannelResponder;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+
 /**
  * Referência: pos.service.ts (guzula-switch).
  * Recebe do TcpRawServer, aciona ComumService -> NucleoService, e via
@@ -25,6 +27,7 @@ public class PosService implements ChannelResponder {
     }
 
     public void handleInbound(byte[] raw) {
-        throw new UnsupportedOperationException("TODO: portar pos.service.ts");
+        String message = new String(raw, StandardCharsets.UTF_8);
+        System.out.println("POS recebeu: " + message);
     }
 }
