@@ -1,5 +1,35 @@
 # Runbook — como subir o ambiente
 
+## Visão mental do projeto
+
+Uma analogia útil para entender a aplicação:
+
+> **Java fornece as peças, Maven organiza a oficina, Spring monta a máquina e Netty conecta a máquina à rede.**
+
+- **Java 21** é a linguagem usada para construir as peças da aplicação.
+- **Maven** organiza os módulos, baixa as dependências, compila e executa os testes.
+- **Spring Boot** cria os serviços e conecta suas dependências.
+- **Netty** recebe e envia as mensagens TCP dos terminais e das redes externas.
+- **`pswitch-app`** reúne todos os módulos e inicia a aplicação.
+
+O fluxo principal planejado pode ser entendido assim:
+
+```text
+Terminal POS
+    ↓ TCP / Netty
+pswitch-capture-pos
+    ↓
+pswitch-comum
+    ↓
+pswitch-nucleo
+    ↓
+pswitch-brand-visa
+    ↓ TCP / Netty
+Rede Visa
+```
+
+Na resposta, a transação percorre o caminho inverso até chegar novamente ao terminal.
+
 ## Pré-requisitos
 
 - Java 21
