@@ -1,6 +1,9 @@
 spring:
   application:
     name: switch
+  output:
+    ansi:
+      enabled: always
   data:
     mongodb:
       uri: mongodb://localhost:27017/switch

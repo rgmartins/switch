@@ -4,6 +4,8 @@ import com.guzula.pswitch.transport.TcpRawServer;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ansi.AnsiColor;
+import org.springframework.boot.ansi.AnsiOutput;
 import org.springframework.stereotype.Component;
 
 /**
@@ -28,7 +30,10 @@ public class PosTcpServer {
     @PostConstruct
     public void start() {
         tcpRawServer.start(host, port);
-        System.out.printf("Servidor TCP do POS ouvindo em %s:%d%n", host, port);
+        System.out.println(AnsiOutput.toString(
+                AnsiColor.BRIGHT_CYAN,
+                "Servidor TCP do POS ouvindo em " + host + ":" + port,
+                AnsiColor.DEFAULT));
     }
 
     @PreDestroy
