@@ -3,6 +3,7 @@ package com.guzula.pswitch.capture.pos.parser;
 import com.guzula.pswitch.capture.pos.PosService;
 import com.guzula.pswitch.capture.pos.parser.de47.De47Parser;
 import com.guzula.pswitch.capture.pos.parser.de55.De55Parser;
+import com.guzula.pswitch.capture.pos.parser.de60.De60Parser;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -79,6 +80,14 @@ class PosParserServiceTest {
         assertEquals("80", emv.tags().get("9f27"));
         assertEquals("835973b10868d1b2", emv.tags().get("9f26"));
         assertEquals("a0000000041010", emv.tags().get("84"));
+
+        var de60 = (De60Parser.Data) message.fields().get(60).value();
+        var encryption = (De60Parser.TrackEncryptionData)
+                de60.subfields().get("12").details();
+        assertEquals("546997", encryption.cardBin());
+        assertEquals("03", encryption.encryptionType().code());
+        assertEquals("DUKPT Triple DES", encryption.encryptionType().description());
+        assertEquals("fffff1700168a060069c", encryption.ksn());
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.guzula.pswitch.capture.pos.parser;
 
 import com.guzula.pswitch.capture.pos.parser.de47.De47Parser;
 import com.guzula.pswitch.capture.pos.parser.de55.De55Parser;
+import com.guzula.pswitch.capture.pos.parser.de60.De60Parser;
 import com.guzula.pswitch.shared.codec.BcdCodec;
 import com.guzula.pswitch.shared.codec.ByteCursor;
 import com.guzula.pswitch.shared.codec.IsoBitmap;
@@ -23,7 +24,8 @@ public class PosParserService {
             PosFieldSchema.fields(),
             Map.of(
                     47, new De47Parser(),
-                    55, new De55Parser()));
+                    55, new De55Parser(),
+                    60, new De60Parser()));
 
     public PosMessage parse(byte[] raw) {
         ByteCursor cursor = new ByteCursor(raw);
