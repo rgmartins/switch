@@ -2,6 +2,7 @@ package com.guzula.pswitch.capture.pos.parser;
 
 import com.guzula.pswitch.capture.pos.PosService;
 import com.guzula.pswitch.capture.pos.parser.de47.De47Parser;
+import com.guzula.pswitch.capture.pos.parser.de55.De55Parser;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -71,6 +72,13 @@ class PosParserServiceTest {
                 de47.subfields().get("06").details()).connectionTime());
         assertTrue(message.toMultilineString().contains("\"transactionCount\": 1"));
         assertTrue(message.toMultilineString().contains("        \"documentNumber\": \"709226\""));
+
+        var de55 = (De55Parser.Data) message.fields().get(55).value();
+        var emv = (De55Parser.EmvData) de55.subfields().get("07").details();
+        assertEquals("3900", emv.tags().get("82"));
+        assertEquals("80", emv.tags().get("9f27"));
+        assertEquals("835973b10868d1b2", emv.tags().get("9f26"));
+        assertEquals("a0000000041010", emv.tags().get("84"));
     }
 
     @Test
