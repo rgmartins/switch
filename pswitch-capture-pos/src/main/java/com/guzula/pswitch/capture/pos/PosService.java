@@ -3,10 +3,10 @@ package com.guzula.pswitch.capture.pos;
 import com.guzula.pswitch.nucleo.ChannelResponder;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import com.guzula.pswitch.shared.port.InboundPayloadHandler;
+import com.guzula.pswitch.shared.port.OutboundPayloadSender;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
-import java.util.function.Consumer;
 
 /**
  * Referência: pos.service.ts (guzula-switch).
@@ -19,6 +19,12 @@ import java.util.function.Consumer;
 @Service
 public class PosService implements ChannelResponder, InboundPayloadHandler {
 
+    private final OutboundPayloadSender payloadSender;
+
+    public PosService(OutboundPayloadSender payloadSender) {
+        this.payloadSender = payloadSender;
+    }
+
     @Override
     public String channel() {
         return "POS";
@@ -30,11 +36,11 @@ public class PosService implements ChannelResponder, InboundPayloadHandler {
     }
 
     @Override
-    public void handleInbound(byte[] payload, Consumer<byte[]> responder) {
+    public void handleInbound(String connectionId, byte[] payload) {
         String message = new String(payload, StandardCharsets.UTF_8);
         System.out.println("POS recebeu: " + message);
 
         String response = "recebi: " + message + ", e estou dizendo que foi ok";
-        responder.accept(response.getBytes(StandardCharsets.UTF_8));
+        payloadSender.send(connectionId, response.getBytes(StandardCharsets.UTF_8));
     }
 }

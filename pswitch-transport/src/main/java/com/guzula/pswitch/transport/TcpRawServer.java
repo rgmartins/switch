@@ -14,7 +14,6 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -26,13 +25,17 @@ import java.util.function.Consumer;
  */
 public class TcpRawServer {
 
-    private final BiConsumer<byte[], Consumer<byte[]>> messageConsumer;
+    private final InboundMessageConsumer messageConsumer;
+    private final TcpConnectionListener connectionListener;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel serverChannel;
 
-    public TcpRawServer(BiConsumer<byte[], Consumer<byte[]>> messageConsumer) {
+    public TcpRawServer(
+            InboundMessageConsumer messageConsumer,
+            TcpConnectionListener connectionListener) {
         this.messageConsumer = Objects.requireNonNull(messageConsumer);
+        this.connectionListener = Objects.requireNonNull(connectionListener);
     }
 
     public synchronized void start(String host, int port) {
@@ -53,7 +56,7 @@ public class TcpRawServer {
                             channel.pipeline().addLast(
                                     new LengthFieldFramerDecoder(),
                                     new LengthFieldFramerEncoder(),
-                                    new InboundMessageHandler(messageConsumer));
+                                    new InboundMessageHandler(messageConsumer, connectionListener));
                         }
                     })
                     .childOption(ChannelOption.TCP_NODELAY, true);
@@ -86,25 +89,43 @@ public class TcpRawServer {
 
     private static final class InboundMessageHandler extends SimpleChannelInboundHandler<ByteBuf> {
 
-        private final BiConsumer<byte[], Consumer<byte[]>> messageConsumer;
+        private final InboundMessageConsumer messageConsumer;
+        private final TcpConnectionListener connectionListener;
 
-        private InboundMessageHandler(BiConsumer<byte[], Consumer<byte[]>> messageConsumer) {
+        private InboundMessageHandler(
+                InboundMessageConsumer messageConsumer,
+                TcpConnectionListener connectionListener) {
             this.messageConsumer = messageConsumer;
+            this.connectionListener = connectionListener;
+        }
+
+        @Override
+        public void channelActive(ChannelHandlerContext context) {
+            connectionListener.connected(
+                    connectionId(context),
+                    response -> context.writeAndFlush(Unpooled.wrappedBuffer(response)));
+        }
+
+        @Override
+        public void channelInactive(ChannelHandlerContext context) {
+            connectionListener.disconnected(connectionId(context));
         }
 
         @Override
         protected void channelRead0(ChannelHandlerContext context, ByteBuf message) {
             byte[] bytes = new byte[message.readableBytes()];
             message.readBytes(bytes);
-            messageConsumer.accept(
-                    bytes,
-                    response -> context.writeAndFlush(Unpooled.wrappedBuffer(response)));
+            messageConsumer.accept(connectionId(context), bytes);
         }
 
         @Override
         public void exceptionCaught(ChannelHandlerContext context, Throwable cause) {
             cause.printStackTrace();
             context.close();
+        }
+
+        private String connectionId(ChannelHandlerContext context) {
+            return context.channel().id().asLongText();
         }
     }
 }

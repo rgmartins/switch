@@ -13,6 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -25,12 +27,16 @@ public class TcpServersConfiguration {
 
     private final TcpServersProperties properties;
     private final Map<String, InboundPayloadHandler> handlers;
+    private final TcpResponseGateway responseGateway;
     private final List<TcpRawServer> servers = new ArrayList<>();
+    private final ExecutorService dispatchExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
     public TcpServersConfiguration(
             TcpServersProperties properties,
-            List<InboundPayloadHandler> handlers) {
+            List<InboundPayloadHandler> handlers,
+            TcpResponseGateway responseGateway) {
         this.properties = properties;
+        this.responseGateway = responseGateway;
         this.handlers = handlers.stream().collect(Collectors.toUnmodifiableMap(
                 handler -> normalize(handler.channel()),
                 Function.identity()));
@@ -46,7 +52,10 @@ public class TcpServersConfiguration {
                             "Nenhum handler encontrado para o canal " + listener.channel());
                 }
 
-                TcpRawServer server = new TcpRawServer(handler::handleInbound);
+                TcpRawServer server = new TcpRawServer(
+                        (connectionId, payload) -> dispatchExecutor.execute(
+                                () -> handler.handleInbound(connectionId, payload)),
+                        responseGateway);
                 server.start(listener.host(), listener.port());
                 servers.add(server);
 
@@ -68,6 +77,7 @@ public class TcpServersConfiguration {
             servers.get(index).stop();
         }
         servers.clear();
+        dispatchExecutor.shutdownNow();
     }
 
     private static String normalize(String channel) {
