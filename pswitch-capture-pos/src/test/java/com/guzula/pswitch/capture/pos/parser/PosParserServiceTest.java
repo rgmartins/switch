@@ -5,6 +5,7 @@ import com.guzula.pswitch.capture.pos.parser.de47.De47Parser;
 import com.guzula.pswitch.capture.pos.parser.de55.De55Parser;
 import com.guzula.pswitch.capture.pos.parser.de60.De60Parser;
 import com.guzula.pswitch.capture.pos.parser.de61.De61Parser;
+import com.guzula.pswitch.capture.pos.parser.de62.De62Parser;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -111,6 +112,21 @@ class PosParserServiceTest {
         assertEquals("89550532730019954319", identification.response());
         assertEquals("0002", ((De61Parser.SecondaryProduct)
                 de61.subfields().get("28").details()).productCode());
+
+        var de62 = (De62Parser.Data) message.fields().get(62).value();
+        assertEquals(1, de62.subfields().size());
+        var confirmation = (De62Parser.EmvConfirmation)
+                de62.subfields().get("05").details();
+        assertEquals("709226", confirmation.documentNumber());
+        assertEquals("231020092905", confirmation.transactionDateTime());
+        assertEquals("000", confirmation.responseCode());
+        assertEquals(39, confirmation.emvLength());
+        assertEquals("0200048000", confirmation.emvTags().get("95"));
+        assertEquals("9d4b2258", confirmation.emvTags().get("9f37"));
+        assertEquals("40", confirmation.emvTags().get("9f27"));
+        assertEquals("5405f0aef3332917", confirmation.emvTags().get("9f26"));
+        assertEquals("06010a03600000", confirmation.emvTags().get("9f10"));
+        assertEquals("0000383632303035", confirmation.additionalDataHex());
     }
 
     @Test
