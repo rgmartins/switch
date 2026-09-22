@@ -100,14 +100,14 @@ public class CanonicalTransaction {
     }
 
     public static class Operation {
-        private double amount; // DE 4 — TODO ver TODO.md do guzula-switch: migrar para centavos (long)
+        private long amount; // DE 4, em centavos
         private String currencyCode; // DE 49
 
-        public double getAmount() {
+        public long getAmount() {
             return amount;
         }
 
-        public void setAmount(double amount) {
+        public void setAmount(long amount) {
             this.amount = amount;
         }
 

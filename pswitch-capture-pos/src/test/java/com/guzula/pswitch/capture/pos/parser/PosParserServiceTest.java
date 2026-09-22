@@ -1,5 +1,6 @@
 package com.guzula.pswitch.capture.pos.parser;
 
+import com.guzula.pswitch.capture.pos.PosMapperService;
 import com.guzula.pswitch.capture.pos.PosService;
 import com.guzula.pswitch.capture.pos.parser.de12.De12Parser;
 import com.guzula.pswitch.capture.pos.parser.de47.De47Parser;
@@ -10,12 +11,14 @@ import com.guzula.pswitch.capture.pos.parser.de62.De62Parser;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -136,6 +139,50 @@ class PosParserServiceTest {
     }
 
     @Test
+    void buildsTypedPosTransactionFromParsedMessage() {
+        byte[] payload = HexFormat.of().parseHex(MESSAGE_HEX);
+        PosMessage message = parser.parse(payload);
+
+        PosTransaction transaction = PosTransaction.from(message);
+
+        // Cada DE é conferido individualmente contra a mensagem simulada: isso é a
+        // rede de segurança contra uma eventual troca de posição no PosTransaction.from(),
+        // já que campos do mesmo tipo (String, BigInteger) não dão erro de compilação
+        // nem ClassCastException se forem trocados de lugar.
+        assertEquals("001010", transaction.de003ProcessingCode());
+        assertEquals(new BigDecimal("36.00"), transaction.de004AmountTransaction());
+        assertEquals(new BigInteger("709227"), transaction.de011Nsu());
+        assertEquals("231020093411", transaction.de012TimeLocalTransaction().raw());
+        assertEquals("5912", transaction.de018Mcc());
+        assertEquals("602010107000", transaction.de022PosEntryMode());
+        assertEquals("00", transaction.de023CardSequenceNumber());
+        assertEquals("0001", transaction.de024HostFlow());
+        assertEquals(
+                "35353535353535353535353535353535353535353535353535353535353535353535353535353535",
+                transaction.de035Track2Data());
+        assertNull(transaction.de038AuthorizationCode());
+        assertNull(transaction.de039ResponseCode());
+        assertEquals("00891592", transaction.de041TerminalId());
+        assertEquals(new BigInteger("10169548130001"), transaction.de042MerchantId());
+        assertEquals(new BigInteger("10169548130001"), transaction.de043MerchantLocation());
+        assertEquals("709226", ((De47Parser.ConnectionStatistics)
+                transaction.de047Statistics().subfields().get("01").details()).documentNumber());
+        assertEquals("0986", transaction.de049CurrencyCode());
+        assertEquals("5252525252525252", transaction.de052PinBlock());
+        assertEquals("03fffff1700068a060031c", transaction.de053SecurityRelatedInfo());
+        assertEquals("3900", ((De55Parser.EmvData)
+                transaction.de055IccData().subfields().get("07").details()).tags().get("82"));
+        assertEquals("546997", ((De60Parser.TrackEncryptionData)
+                transaction.de060AdditionalPosInformation().subfields().get("12").details()).cardBin());
+        assertEquals("CI16NSP9340T", ((De61Parser.SoftwareIdentification)
+                transaction.de061PosPrivateData().subfields().get("01").details()).softwareId());
+        assertEquals("709226", ((De62Parser.EmvConfirmation)
+                transaction.de062NetworkPrivateData1().subfields().get("05").details()).documentNumber());
+        assertNull(transaction.de063NetworkPrivateData2());
+        assertArrayEquals(HexFormat.of().parseHex("078f2e32b303a240"), transaction.de064Mac());
+    }
+
+    @Test
     void rejectsTruncatedMessageWithFieldAndOffset() {
         byte[] payload = HexFormat.of().parseHex(MESSAGE_HEX);
 
@@ -151,7 +198,8 @@ class PosParserServiceTest {
     void posServiceEchoesExactlyTheReceivedBytes() {
         byte[] payload = HexFormat.of().parseHex("60000000006f12000000000000000000");
         AtomicReference<byte[]> sent = new AtomicReference<>();
-        PosService service = new PosService((connectionId, response) -> sent.set(response), parser);
+        PosService service = new PosService(
+                (connectionId, response) -> sent.set(response), parser, new PosMapperService());
 
         service.handleInbound("connection-1", payload);
 

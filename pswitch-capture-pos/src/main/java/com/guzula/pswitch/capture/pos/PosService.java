@@ -21,10 +21,12 @@ public class PosService implements ChannelResponder, InboundPayloadHandler {
 
     private final OutboundPayloadSender payloadSender;
     private final PosParserService parser;
+    private final PosMapperService mapper;
 
-    public PosService(OutboundPayloadSender payloadSender, PosParserService parser) {
+    public PosService(OutboundPayloadSender payloadSender, PosParserService parser, PosMapperService mapper) {
         this.payloadSender = payloadSender;
         this.parser = parser;
+        this.mapper = mapper;
     }
 
     @Override
@@ -41,6 +43,12 @@ public class PosService implements ChannelResponder, InboundPayloadHandler {
     public void handleInbound(String connectionId, byte[] payload) {
         PosMessage message = parser.parse(payload);
         System.out.print(message.toMultilineString());
+
+        CanonicalTransaction canonical = mapper.toCanonical(message);
+        System.out.printf("Canonical  terminalId=%s valorCentavos=%d moeda=%s%n",
+                canonical.getTerminalId(),
+                canonical.getOperation().getAmount(),
+                canonical.getOperation().getCurrencyCode());
 
         payloadSender.send(connectionId, payload);
     }
