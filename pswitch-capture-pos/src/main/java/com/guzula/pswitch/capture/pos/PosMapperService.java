@@ -16,6 +16,9 @@ public class PosMapperService {
 
     public CanonicalTransaction toCanonical(PosMessage message) {
         PosTransaction transaction = PosTransaction.from(message);
+        System.out.println("************************************");
+        System.out.println("* Esta é a classe PosMapperService *");
+        System.out.println("************************************");
         System.out.println(transaction);
 
         CanonicalTransaction canonical = new CanonicalTransaction();
