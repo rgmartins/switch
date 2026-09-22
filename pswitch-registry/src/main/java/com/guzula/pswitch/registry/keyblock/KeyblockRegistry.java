@@ -1,10 +1,9 @@
 package com.guzula.pswitch.registry.keyblock;
 
 /**
- * Contrato do registry de keyblocks.
- * Referência: keyblock-registry.interface.ts (guzula-switch).
+ * Contrato do registry de keyblocks. Referência: keyblock-registry.interface.ts (guzula-switch).
  */
 public interface KeyblockRegistry {
 
-    Object findByKeyblockId(String keyblockId);
+  Object findByKeyblockId(String keyblockId);
 }

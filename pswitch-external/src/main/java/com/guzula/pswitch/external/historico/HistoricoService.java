@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class HistoricoService {
 
-    public void send(Object canonicalTransaction) {
-        throw new UnsupportedOperationException("TODO: portar historico.service.ts");
-    }
+  public void send(Object canonicalTransaction) {
+    throw new UnsupportedOperationException("TODO: portar historico.service.ts");
+  }
 }

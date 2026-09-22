@@ -119,5 +119,48 @@
         </plugin>
       </plugins>
     </pluginManagement>
+
+    <!--
+      Declarados em <plugins> (não em pluginManagement) para serem herdados por
+      todos os módulos automaticamente. Referência: docs/runbook/runbook.md, seção
+      "Padrão de código".
+    -->
+    <plugins>
+      <!-- Formata o código automaticamente no padrão Google Java Style. -->
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+        <version>3.10.2</version>
+        <configuration>
+          <java>
+            <googleJavaFormat>
+              <version>1.36.1</version>
+              <style>GOOGLE</style>
+            </googleJavaFormat>
+            <removeUnusedImports/>
+            <importOrder/>
+          </java>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>validate</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Análise estática de bugs reais (bytecode). Rodar manualmente por ora: mvn spotbugs:check -->
+      <plugin>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-maven-plugin</artifactId>
+        <version>4.10.4.1</version>
+        <configuration>
+          <effort>Max</effort>
+          <threshold>Medium</threshold>
+        </configuration>
+      </plugin>
+    </plugins>
   </build>
 </project>

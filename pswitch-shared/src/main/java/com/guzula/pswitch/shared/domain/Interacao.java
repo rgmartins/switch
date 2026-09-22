@@ -8,49 +8,51 @@ import java.util.Map;
  */
 public class Interacao {
 
-    private String id; // ParteInteracao: pos, visa, mastercard, amex, hsm, antifraud, planet, tarifas, pre-auth, historico
-    private String sentido; // TypeInteractionDirection: request | response
-    private boolean sanitizado;
-    private InteracaoTempo time;
-    private Map<String, Object> message;
+  private String
+      id; // ParteInteracao: pos, visa, mastercard, amex, hsm, antifraud, planet, tarifas, pre-auth,
+  // historico
+  private String sentido; // TypeInteractionDirection: request | response
+  private boolean sanitizado;
+  private InteracaoTempo time;
+  private Map<String, Object> message;
 
-    public String getId() {
-        return id;
-    }
+  public String getId() {
+    return id;
+  }
 
-    public void setId(String id) {
-        this.id = id;
-    }
+  public void setId(String id) {
+    this.id = id;
+  }
 
-    public String getSentido() {
-        return sentido;
-    }
+  public String getSentido() {
+    return sentido;
+  }
 
-    public void setSentido(String sentido) {
-        this.sentido = sentido;
-    }
+  public void setSentido(String sentido) {
+    this.sentido = sentido;
+  }
 
-    public boolean isSanitizado() {
-        return sanitizado;
-    }
+  public boolean isSanitizado() {
+    return sanitizado;
+  }
 
-    public void setSanitizado(boolean sanitizado) {
-        this.sanitizado = sanitizado;
-    }
+  public void setSanitizado(boolean sanitizado) {
+    this.sanitizado = sanitizado;
+  }
 
-    public InteracaoTempo getTime() {
-        return time;
-    }
+  public InteracaoTempo getTime() {
+    return time;
+  }
 
-    public void setTime(InteracaoTempo time) {
-        this.time = time;
-    }
+  public void setTime(InteracaoTempo time) {
+    this.time = time;
+  }
 
-    public Map<String, Object> getMessage() {
-        return message;
-    }
+  public Map<String, Object> getMessage() {
+    return message;
+  }
 
-    public void setMessage(Map<String, Object> message) {
-        this.message = message;
-    }
+  public void setMessage(Map<String, Object> message) {
+    this.message = message;
+  }
 }

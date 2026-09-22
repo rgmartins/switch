@@ -5,12 +5,12 @@ import org.springframework.stereotype.Service;
 /**
  * Referência: pos-packer.service.ts (guzula-switch). Inverso do PosParserService.
  *
- * TODO: portar geração de bitmap e serialização de volta pro terminal.
+ * <p>TODO: portar geração de bitmap e serialização de volta pro terminal.
  */
 @Service
 public class PosPackerService {
 
-    public byte[] pack(Object parsedMessage) {
-        throw new UnsupportedOperationException("TODO: portar pos-packer.service.ts");
-    }
+  public byte[] pack(Object parsedMessage) {
+    throw new UnsupportedOperationException("TODO: portar pos-packer.service.ts");
+  }
 }

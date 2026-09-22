@@ -11,64 +11,61 @@ import com.guzula.pswitch.shared.codec.ByteCursor;
 import com.guzula.pswitch.shared.codec.IsoBitmap;
 import com.guzula.pswitch.shared.codec.IsoFieldsParser;
 import com.guzula.pswitch.shared.codec.IsoParseException;
-import org.springframework.stereotype.Service;
-
 import java.util.HexFormat;
 import java.util.Map;
+import org.springframework.stereotype.Service;
 
 /** Abre o envelope POS e delega os campos ISO ao motor compartilhado. */
 @Service
 public class PosParserService {
 
-    private static final int TPDU_LENGTH = 5;
-    private static final int PRIMARY_BITMAP_LENGTH = 8;
+  private static final int TPDU_LENGTH = 5;
+  private static final int PRIMARY_BITMAP_LENGTH = 8;
 
-    private final IsoFieldsParser fieldsParser = new IsoFieldsParser(
-            PosFieldSchema.fields(),
-            Map.of(
-                    12, new De12Parser(),
-                    47, new De47Parser(),
-                    55, new De55Parser(),
-                    60, new De60Parser(),
-                    61, new De61Parser(),
-                    62, new De62Parser()));
+  private final IsoFieldsParser fieldsParser =
+      new IsoFieldsParser(
+          PosFieldSchema.fields(),
+          Map.of(
+              12, new De12Parser(),
+              47, new De47Parser(),
+              55, new De55Parser(),
+              60, new De60Parser(),
+              61, new De61Parser(),
+              62, new De62Parser()));
 
-    public PosMessage parse(byte[] raw) {
-        ByteCursor cursor = new ByteCursor(raw);
+  public PosMessage parse(byte[] raw) {
+    ByteCursor cursor = new ByteCursor(raw);
 
-        PosTpdu tpdu = parseTpdu(cursor.readBytes(TPDU_LENGTH, "TPDU"));
-        String transparency = HexFormat.of().formatHex(
-                cursor.readBytes(1, "tipo de transparência"));
-        String mti = BcdCodec.decode(cursor.readBytes(2, "MTI"));
-        IsoBitmap bitmap = new IsoBitmap(cursor.readBytes(PRIMARY_BITMAP_LENGTH, "bitmap primário"));
+    PosTpdu tpdu = parseTpdu(cursor.readBytes(TPDU_LENGTH, "TPDU"));
+    String transparency = HexFormat.of().formatHex(cursor.readBytes(1, "tipo de transparência"));
+    String mti = BcdCodec.decode(cursor.readBytes(2, "MTI"));
+    IsoBitmap bitmap = new IsoBitmap(cursor.readBytes(PRIMARY_BITMAP_LENGTH, "bitmap primário"));
 
-        if (bitmap.isSet(1)) {
-            throw new IsoParseException("Bitmap secundário ainda não é suportado pelo canal POS");
-        }
-
-        var fields = fieldsParser.parse(cursor, bitmap);
-        if (cursor.hasRemaining()) {
-            throw new IsoParseException(
-                    "Mensagem POS possui %d bytes não consumidos no offset %d"
-                            .formatted(cursor.remaining(), cursor.position()));
-        }
-
-        return new PosMessage(tpdu, transparency, mti, bitmap, fields, raw);
+    if (bitmap.isSet(1)) {
+      throw new IsoParseException("Bitmap secundário ainda não é suportado pelo canal POS");
     }
 
-    private PosTpdu parseTpdu(byte[] tpdu) {
-        return new PosTpdu(
-                HexFormat.of().formatHex(new byte[]{tpdu[0]}),
-                address(tpdu, 1),
-                address(tpdu, 3));
+    var fields = fieldsParser.parse(cursor, bitmap);
+    if (cursor.hasRemaining()) {
+      throw new IsoParseException(
+          "Mensagem POS possui %d bytes não consumidos no offset %d"
+              .formatted(cursor.remaining(), cursor.position()));
     }
 
-    private String address(byte[] tpdu, int offset) {
-        byte[] address = new byte[]{tpdu[offset], tpdu[offset + 1]};
-        try {
-            return BcdCodec.decode(address);
-        } catch (IsoParseException ignored) {
-            return HexFormat.of().formatHex(address);
-        }
+    return new PosMessage(tpdu, transparency, mti, bitmap, fields, raw);
+  }
+
+  private PosTpdu parseTpdu(byte[] tpdu) {
+    return new PosTpdu(
+        HexFormat.of().formatHex(new byte[] {tpdu[0]}), address(tpdu, 1), address(tpdu, 3));
+  }
+
+  private String address(byte[] tpdu, int offset) {
+    byte[] address = new byte[] {tpdu[offset], tpdu[offset + 1]};
+    try {
+      return BcdCodec.decode(address);
+    } catch (IsoParseException ignored) {
+      return HexFormat.of().formatHex(address);
     }
+  }
 }

@@ -8,31 +8,31 @@ import java.util.Map;
  */
 public class RegistroLido {
 
-    private String id; // TypeRegistry: terminal, bin, keyblock, product
-    private InteracaoTempo time;
-    private Map<String, Object> registry;
+  private String id; // TypeRegistry: terminal, bin, keyblock, product
+  private InteracaoTempo time;
+  private Map<String, Object> registry;
 
-    public String getId() {
-        return id;
-    }
+  public String getId() {
+    return id;
+  }
 
-    public void setId(String id) {
-        this.id = id;
-    }
+  public void setId(String id) {
+    this.id = id;
+  }
 
-    public InteracaoTempo getTime() {
-        return time;
-    }
+  public InteracaoTempo getTime() {
+    return time;
+  }
 
-    public void setTime(InteracaoTempo time) {
-        this.time = time;
-    }
+  public void setTime(InteracaoTempo time) {
+    this.time = time;
+  }
 
-    public Map<String, Object> getRegistry() {
-        return registry;
-    }
+  public Map<String, Object> getRegistry() {
+    return registry;
+  }
 
-    public void setRegistry(Map<String, Object> registry) {
-        this.registry = registry;
-    }
+  public void setRegistry(Map<String, Object> registry) {
+    this.registry = registry;
+  }
 }
