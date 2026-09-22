@@ -34,6 +34,14 @@ Na resposta, a transação percorre o caminho inverso até chegar novamente ao t
 
 - Java 21
 - Maven
+- Docker (pra subir o MongoDB via [`switch-docker`](../../../switch-docker))
+
+## 0. Subir a infraestrutura (MongoDB)
+
+```bash
+cd D:\adq\switch-docker
+docker compose up -d
+```
 
 ## 1. Instalar os módulos no repositório local
 
@@ -59,7 +67,7 @@ Esperado ver no final:
 Started SwitchApplication in X seconds
 ```
 
-Antes disso pode aparecer um erro de conexão com `localhost:27017` (MongoDB) — normal se não tiver um Mongo local rodando ainda; não derruba a aplicação.
+Se aparecer erro de conexão com `localhost:27017` (MongoDB), é porque o passo 0 (`docker compose up -d` no `switch-docker`) não foi feito — não derruba a aplicação, mas as funcionalidades que dependem do Mongo (registries, storage) não vão funcionar.
 
 ## 3. Testar com o simulador POS
 
