@@ -1,6 +1,7 @@
 package com.guzula.pswitch.capture.pos.parser;
 
 import com.guzula.pswitch.capture.pos.PosService;
+import com.guzula.pswitch.capture.pos.parser.de12.De12Parser;
 import com.guzula.pswitch.capture.pos.parser.de47.De47Parser;
 import com.guzula.pswitch.capture.pos.parser.de55.De55Parser;
 import com.guzula.pswitch.capture.pos.parser.de60.De60Parser;
@@ -61,6 +62,11 @@ class PosParserServiceTest {
         assertEquals(new BigDecimal("36.00"), message.fields().get(4).value());
         assertEquals(21, message.fields().size());
         assertArrayEquals(payload, message.raw());
+
+        var de12 = (De12Parser.TransactionDateTime) message.fields().get(12).value();
+        assertEquals("231020093411", de12.raw());
+        assertEquals("23-10-20", de12.date());
+        assertEquals("09:34:11", de12.time());
 
         var de47 = (De47Parser.Data) message.fields().get(47).value();
         assertEquals(4, de47.subfields().size());

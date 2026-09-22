@@ -1,5 +1,6 @@
 package com.guzula.pswitch.capture.pos.parser;
 
+import com.guzula.pswitch.capture.pos.parser.de12.De12Parser;
 import com.guzula.pswitch.capture.pos.parser.de47.De47Parser;
 import com.guzula.pswitch.capture.pos.parser.de55.De55Parser;
 import com.guzula.pswitch.capture.pos.parser.de60.De60Parser;
@@ -25,6 +26,7 @@ public class PosParserService {
     private final IsoFieldsParser fieldsParser = new IsoFieldsParser(
             PosFieldSchema.fields(),
             Map.of(
+                    12, new De12Parser(),
                     47, new De47Parser(),
                     55, new De55Parser(),
                     60, new De60Parser(),
