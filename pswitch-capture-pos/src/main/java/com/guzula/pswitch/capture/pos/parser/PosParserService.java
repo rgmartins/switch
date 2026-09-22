@@ -1,19 +1,59 @@
 package com.guzula.pswitch.capture.pos.parser;
 
+import com.guzula.pswitch.shared.codec.BcdCodec;
+import com.guzula.pswitch.shared.codec.ByteCursor;
+import com.guzula.pswitch.shared.codec.IsoBitmap;
+import com.guzula.pswitch.shared.codec.IsoFieldsParser;
+import com.guzula.pswitch.shared.codec.IsoParseException;
 import org.springframework.stereotype.Service;
 
-/**
- * Referência: pos-parser.service.ts + pos-parser.config.ts (guzula-switch).
- * Usa FieldDef diretamente (re-exportado de iso-codec no original).
- * Para DEs com lógica customizada (DE 55 EMV tags, DE 47 subfields), ver
- * padrão des/ com DeParser/DePacker injetados via Map.
- *
- * TODO: portar schema e parsing.
- */
+import java.util.HexFormat;
+
+/** Abre o envelope POS e delega os campos ISO ao motor compartilhado. */
 @Service
 public class PosParserService {
 
-    public Object parse(byte[] raw) {
-        throw new UnsupportedOperationException("TODO: portar pos-parser.service.ts");
+    private static final int TPDU_LENGTH = 5;
+    private static final int PRIMARY_BITMAP_LENGTH = 8;
+
+    private final IsoFieldsParser fieldsParser = new IsoFieldsParser(PosFieldSchema.fields());
+
+    public PosMessage parse(byte[] raw) {
+        ByteCursor cursor = new ByteCursor(raw);
+
+        PosTpdu tpdu = parseTpdu(cursor.readBytes(TPDU_LENGTH, "TPDU"));
+        String transparency = HexFormat.of().formatHex(
+                cursor.readBytes(1, "tipo de transparência"));
+        String mti = BcdCodec.decode(cursor.readBytes(2, "MTI"));
+        IsoBitmap bitmap = new IsoBitmap(cursor.readBytes(PRIMARY_BITMAP_LENGTH, "bitmap primário"));
+
+        if (bitmap.isSet(1)) {
+            throw new IsoParseException("Bitmap secundário ainda não é suportado pelo canal POS");
+        }
+
+        var fields = fieldsParser.parse(cursor, bitmap);
+        if (cursor.hasRemaining()) {
+            throw new IsoParseException(
+                    "Mensagem POS possui %d bytes não consumidos no offset %d"
+                            .formatted(cursor.remaining(), cursor.position()));
+        }
+
+        return new PosMessage(tpdu, transparency, mti, bitmap, fields, raw);
+    }
+
+    private PosTpdu parseTpdu(byte[] tpdu) {
+        return new PosTpdu(
+                HexFormat.of().formatHex(new byte[]{tpdu[0]}),
+                address(tpdu, 1),
+                address(tpdu, 3));
+    }
+
+    private String address(byte[] tpdu, int offset) {
+        byte[] address = new byte[]{tpdu[offset], tpdu[offset + 1]};
+        try {
+            return BcdCodec.decode(address);
+        } catch (IsoParseException ignored) {
+            return HexFormat.of().formatHex(address);
+        }
     }
 }

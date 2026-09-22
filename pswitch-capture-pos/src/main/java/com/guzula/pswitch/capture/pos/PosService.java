@@ -1,12 +1,12 @@
 package com.guzula.pswitch.capture.pos;
 
+import com.guzula.pswitch.capture.pos.parser.PosMessage;
+import com.guzula.pswitch.capture.pos.parser.PosParserService;
 import com.guzula.pswitch.nucleo.ChannelResponder;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import com.guzula.pswitch.shared.port.InboundPayloadHandler;
 import com.guzula.pswitch.shared.port.OutboundPayloadSender;
 import org.springframework.stereotype.Service;
-
-import java.util.HexFormat;
 
 /**
  * Referência: pos.service.ts (guzula-switch).
@@ -20,9 +20,11 @@ import java.util.HexFormat;
 public class PosService implements ChannelResponder, InboundPayloadHandler {
 
     private final OutboundPayloadSender payloadSender;
+    private final PosParserService parser;
 
-    public PosService(OutboundPayloadSender payloadSender) {
+    public PosService(OutboundPayloadSender payloadSender, PosParserService parser) {
         this.payloadSender = payloadSender;
+        this.parser = parser;
     }
 
     @Override
@@ -37,10 +39,8 @@ public class PosService implements ChannelResponder, InboundPayloadHandler {
 
     @Override
     public void handleInbound(String connectionId, byte[] payload) {
-        System.out.printf(
-                "POS recebeu (%d bytes): %s%n",
-                payload.length,
-                HexFormat.of().formatHex(payload));
+        PosMessage message = parser.parse(payload);
+        System.out.print(message.toMultilineString());
 
         payloadSender.send(connectionId, payload);
     }

@@ -10,7 +10,25 @@ public record FieldDef(
         String key,
         String name,
         IsoFieldType type,
-        String format,
+        LengthFormat format,
         Integer length
 ) {
+
+    public FieldDef {
+        if (de != null && (de < 2 || de > 128)) {
+            throw new IllegalArgumentException("DE deve estar entre 2 e 128");
+        }
+        if (key == null || key.isBlank()) {
+            throw new IllegalArgumentException("A chave do campo é obrigatória");
+        }
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("O nome do campo é obrigatório");
+        }
+        if (type == null || format == null) {
+            throw new IllegalArgumentException("Tipo e formato do campo são obrigatórios");
+        }
+        if (format == LengthFormat.FIXED && (length == null || length < 0)) {
+            throw new IllegalArgumentException("Campo FIXED exige tamanho");
+        }
+    }
 }
