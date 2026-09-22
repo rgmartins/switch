@@ -34,6 +34,7 @@ Na resposta, a transação percorre o caminho inverso até chegar novamente ao t
 
 - Java 21
 - Maven
+- Node.js 22 ou superior (para executar os simuladores localmente)
 - Docker (pra subir o MongoDB via [`switch-docker`](../../../switch-docker))
 
 ## 0. Subir a infraestrutura (MongoDB)
@@ -69,7 +70,46 @@ Started SwitchApplication in X seconds
 
 Se aparecer erro de conexão com `localhost:27017` (MongoDB), é porque o passo 0 (`docker compose up -d` no `switch-docker`) não foi feito — não derruba a aplicação, mas as funcionalidades que dependem do Mongo (registries, storage) não vão funcionar.
 
-## 3. Testar com o simulador POS
+## 3. Subir o simulador HSM
+
+Em outro PowerShell, execute:
+
+```powershell
+cd D:\adq\switch-simuladores
+npm run start:dev
+```
+
+Por padrão, o simulador HSM fica disponível em `0.0.0.0:6002`. O log esperado é semelhante a:
+
+```text
+[HSM] Servidor TCP ativo em 0.0.0.0:6002
+```
+
+Para executar com Docker:
+
+```powershell
+cd D:\adq\switch-simuladores
+docker compose up --build
+```
+
+Para usar outra porta no PowerShell:
+
+```powershell
+$env:HSM_PORT = "7002"
+npm run start:dev
+```
+
+O HSM não expõe um endpoint HTTP. A comunicação utiliza socket TCP persistente e cada mensagem recebe um prefixo binário de tamanho de 2 bytes, unsigned big-endian. O servidor devolve a resposta pela mesma conexão que originou o request.
+
+O simulador implementa os comandos `SE → SF` (descriptografia simulada da trilha) e `G0 → G1` (tradução simulada do PIN block). Dados criptografados do comando `SE` terminados em `EE` provocam um atraso configurável, usado para testar timeout.
+
+Para encerrar o simulador executado por npm, pressione `Ctrl+C`. No modo Docker, execute:
+
+```powershell
+docker compose down
+```
+
+## 4. Testar com o simulador POS
 
 Com a aplicação em execução, abra outro PowerShell na raiz do projeto e execute:
 
