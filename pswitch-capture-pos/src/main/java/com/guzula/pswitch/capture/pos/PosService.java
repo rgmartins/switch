@@ -44,7 +44,7 @@ public class PosService implements ChannelResponder, InboundPayloadHandler {
         PosMessage message = parser.parse(payload);
         System.out.print(message.toMultilineString());
 
-        CanonicalTransaction canonical = mapper.toCanonical(message);
+        CanonicalTransaction canonical = mapper.toCanonical(message, connectionId);
         System.out.printf("Canonical  terminalId=%s valorCentavos=%d moeda=%s%n",
                 canonical.getTerminalId(),
                 canonical.getOperation().getAmount(),

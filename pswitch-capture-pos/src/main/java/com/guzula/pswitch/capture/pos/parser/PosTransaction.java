@@ -15,6 +15,7 @@ import java.util.Map;
 
 /** Visão tipada da PosMessage, com cada campo nomeado pelo DE ISO que o originou. */
 public record PosTransaction(
+        String mti,
         String de003ProcessingCode,
         BigDecimal de004AmountTransaction,
         BigInteger de011Nsu,
@@ -70,6 +71,7 @@ public record PosTransaction(
         byte[] de064Mac = raw(fields, 64);
 
         return new PosTransaction(
+                message.mti(),
                 de003ProcessingCode,
                 de004AmountTransaction,
                 de011Nsu,

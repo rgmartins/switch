@@ -1,11 +1,13 @@
 package com.guzula.pswitch.shared.util;
 
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.RecordComponent;
 import java.util.Iterator;
 import java.util.Map;
 
-/** Formata mapas, coleções e records Java como JSON identado para diagnóstico. */
+/** Formata mapas, coleções, records e objetos Java simples como JSON identado para diagnóstico. */
 public final class PrettyJson {
 
     private static final String INDENT = "  ";
@@ -34,6 +36,8 @@ public final class PrettyJson {
             appendArray(value, output, level);
         } else if (value.getClass().isRecord()) {
             appendRecord(value, output, level);
+        } else if (value.getClass().getName().startsWith("com.guzula.pswitch.")) {
+            appendFields(value, output, level);
         } else {
             output.append('"').append(escape(String.valueOf(value))).append('"');
         }
@@ -104,6 +108,33 @@ public final class PrettyJson {
             }
         }
         closeCollection(output, level, components.length == 0, '}');
+    }
+
+    private static void appendFields(Object object, StringBuilder output, int level) {
+        Field[] fields = object.getClass().getDeclaredFields();
+        int written = 0;
+        output.append('{');
+        for (Field field : fields) {
+            if (Modifier.isStatic(field.getModifiers()) || field.isSynthetic()) {
+                continue;
+            }
+            if (written > 0) {
+                output.append(',');
+            }
+            output.append(System.lineSeparator());
+            indent(output, level + 1);
+            output.append('"').append(escape(field.getName())).append("\": ");
+            try {
+                field.setAccessible(true);
+                append(field.get(object), output, level + 1);
+            } catch (ReflectiveOperationException exception) {
+                throw new IllegalArgumentException(
+                        "Não foi possível formatar " + object.getClass().getSimpleName(),
+                        exception);
+            }
+            written++;
+        }
+        closeCollection(output, level, written == 0, '}');
     }
 
     private static void closeCollection(
