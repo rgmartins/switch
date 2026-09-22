@@ -37,15 +37,23 @@ public record PosMessage(
         output.append("MTI    %s%n".formatted(mti));
         output.append("BITMAP %s%n".formatted(bitmap.hex()));
 
-        fields.forEach((de, field) -> output.append(
-                "DE%03d %-24s = %s  [%d bytes, offset %d]%n"
-                        .formatted(
-                                de,
-                                field.definition().key(),
-                                field.value(),
-                                field.length(),
-                                field.offset())));
+        fields.forEach((de, field) -> appendField(output, de, field));
         return output.toString();
+    }
+
+    private void appendField(StringBuilder output, int de, ParsedField field) {
+        String value = String.valueOf(field.value());
+        String metadata = "[%d bytes, offset %d]".formatted(field.length(), field.offset());
+
+        if (!value.contains(System.lineSeparator())) {
+            output.append("DE%03d %-24s = %s  %s%n"
+                    .formatted(de, field.definition().key(), value, metadata));
+            return;
+        }
+
+        output.append("DE%03d %s %s =%n"
+                .formatted(de, field.definition().key(), metadata));
+        value.lines().forEach(line -> output.append("  ").append(line).append(System.lineSeparator()));
     }
 
     public String rawHex() {

@@ -1,5 +1,6 @@
 package com.guzula.pswitch.capture.pos.parser;
 
+import com.guzula.pswitch.capture.pos.parser.de47.De47Parser;
 import com.guzula.pswitch.shared.codec.BcdCodec;
 import com.guzula.pswitch.shared.codec.ByteCursor;
 import com.guzula.pswitch.shared.codec.IsoBitmap;
@@ -8,6 +9,7 @@ import com.guzula.pswitch.shared.codec.IsoParseException;
 import org.springframework.stereotype.Service;
 
 import java.util.HexFormat;
+import java.util.Map;
 
 /** Abre o envelope POS e delega os campos ISO ao motor compartilhado. */
 @Service
@@ -16,7 +18,9 @@ public class PosParserService {
     private static final int TPDU_LENGTH = 5;
     private static final int PRIMARY_BITMAP_LENGTH = 8;
 
-    private final IsoFieldsParser fieldsParser = new IsoFieldsParser(PosFieldSchema.fields());
+    private final IsoFieldsParser fieldsParser = new IsoFieldsParser(
+            PosFieldSchema.fields(),
+            Map.of(47, new De47Parser()));
 
     public PosMessage parse(byte[] raw) {
         ByteCursor cursor = new ByteCursor(raw);

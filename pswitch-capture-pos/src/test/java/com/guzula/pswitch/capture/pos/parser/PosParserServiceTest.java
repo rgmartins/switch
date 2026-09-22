@@ -1,6 +1,7 @@
 package com.guzula.pswitch.capture.pos.parser;
 
 import com.guzula.pswitch.capture.pos.PosService;
+import com.guzula.pswitch.capture.pos.parser.de47.De47Parser;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -56,6 +57,20 @@ class PosParserServiceTest {
         assertEquals(new BigDecimal("36.00"), message.fields().get(4).value());
         assertEquals(21, message.fields().size());
         assertArrayEquals(payload, message.raw());
+
+        var de47 = (De47Parser.Data) message.fields().get(47).value();
+        assertEquals(4, de47.subfields().size());
+        assertEquals("709226", ((De47Parser.ConnectionStatistics)
+                de47.subfields().get("01").details()).documentNumber());
+        assertEquals("2023-10-20 09:29:05", ((De47Parser.ConnectionStatistics)
+                de47.subfields().get("01").details()).dateTime());
+        assertEquals(26, ((De47Parser.SupplyStatistics)
+                de47.subfields().get("02").details()).lineCount());
+        assertTrue(de47.subfields().get("05").details() instanceof De47Parser.FirstTransactionData);
+        assertEquals("1016", ((De47Parser.ConnectionTimes)
+                de47.subfields().get("06").details()).connectionTime());
+        assertTrue(message.toMultilineString().contains("\"transactionCount\": 1"));
+        assertTrue(message.toMultilineString().contains("        \"documentNumber\": \"709226\""));
     }
 
     @Test
