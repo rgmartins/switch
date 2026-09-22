@@ -6,7 +6,7 @@ import com.guzula.pswitch.shared.port.InboundPayloadHandler;
 import com.guzula.pswitch.shared.port.OutboundPayloadSender;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
+import java.util.HexFormat;
 
 /**
  * Referência: pos.service.ts (guzula-switch).
@@ -37,10 +37,11 @@ public class PosService implements ChannelResponder, InboundPayloadHandler {
 
     @Override
     public void handleInbound(String connectionId, byte[] payload) {
-        String message = new String(payload, StandardCharsets.UTF_8);
-        System.out.println("POS recebeu: " + message);
+        System.out.printf(
+                "POS recebeu (%d bytes): %s%n",
+                payload.length,
+                HexFormat.of().formatHex(payload));
 
-        String response = "recebi: " + message + ", e estou dizendo que foi ok";
-        payloadSender.send(connectionId, response.getBytes(StandardCharsets.UTF_8));
+        payloadSender.send(connectionId, payload);
     }
 }

@@ -61,41 +61,23 @@ Started SwitchApplication in X seconds
 
 Antes disso pode aparecer um erro de conexão com `localhost:27017` (MongoDB) — normal se não tiver um Mongo local rodando ainda; não derruba a aplicação.
 
-## 3. Testar o recebimento TCP do POS
+## 3. Testar com o simulador POS
 
-Com a aplicação em execução, abra outro PowerShell e envie uma mensagem para a porta `9000`:
+Com a aplicação em execução, abra outro PowerShell na raiz do projeto e execute:
 
 ```powershell
-$client = [System.Net.Sockets.TcpClient]::new('127.0.0.1', 9000)
-$payload = [System.Text.Encoding]::UTF8.GetBytes('OLA SWITCH')
-$frame = [byte[]]::new($payload.Length + 2)
-$frame[0] = 0x00
-$frame[1] = 0x0A
-[System.Array]::Copy($payload, 0, $frame, 2, $payload.Length)
-$stream = $client.GetStream()
-$stream.Write($frame, 0, $frame.Length)
-$stream.Flush()
-
-$responseHeader = [byte[]]::new(2)
-[void]$stream.Read($responseHeader, 0, $responseHeader.Length)
-$responseLength = ($responseHeader[0] -shl 8) -bor $responseHeader[1]
-$responsePayload = [byte[]]::new($responseLength)
-[void]$stream.Read($responsePayload, 0, $responsePayload.Length)
-[System.Text.Encoding]::UTF8.GetString($responsePayload)
-
-$client.Close()
+cd D:\adq\switch
+powershell -ExecutionPolicy Bypass -File .\tools\pos-simulator.ps1
 ```
 
-No console da aplicação deverá aparecer:
+O simulador contém uma mensagem POS binária de exemplo, converte o hexadecimal para bytes, adiciona automaticamente o prefixo binário de tamanho e envia para `127.0.0.1:9000`.
 
-```text
-POS recebeu: OLA SWITCH
+Para usar outro endereço ou porta:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\pos-simulator.ps1 `
+  -ServerAddress 127.0.0.1 `
+  -ServerPort 9000
 ```
 
-O cliente também deverá receber:
-
-```text
-recebi: OLA SWITCH, e estou dizendo que foi ok
-```
-
-Os dois primeiros bytes (`00 0A`) são um inteiro binário sem sinal, em ordem de rede (big-endian), e informam que o payload possui 10 bytes. O transporte aguarda o frame completo, remove esse prefixo e entrega ao módulo POS somente `OLA SWITCH`. A resposta recebe o mesmo framing e é enviada pela mesma conexão.
+Os dois primeiros bytes do frame são um inteiro binário sem sinal, em ordem de rede (big-endian). O transporte remove esse prefixo antes de entregar o payload ao POS e volta a adicioná-lo na resposta enviada pela mesma conexão.
