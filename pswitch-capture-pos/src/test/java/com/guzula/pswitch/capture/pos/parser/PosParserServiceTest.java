@@ -4,6 +4,7 @@ import com.guzula.pswitch.capture.pos.PosService;
 import com.guzula.pswitch.capture.pos.parser.de47.De47Parser;
 import com.guzula.pswitch.capture.pos.parser.de55.De55Parser;
 import com.guzula.pswitch.capture.pos.parser.de60.De60Parser;
+import com.guzula.pswitch.capture.pos.parser.de61.De61Parser;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -88,6 +89,28 @@ class PosParserServiceTest {
         assertEquals("03", encryption.encryptionType().code());
         assertEquals("DUKPT Triple DES", encryption.encryptionType().description());
         assertEquals("fffff1700168a060069c", encryption.ksn());
+
+        var de61 = (De61Parser.Data) message.fields().get(61).value();
+        assertEquals(6, de61.subfields().size());
+        assertEquals("CI16NSP9340T", ((De61Parser.SoftwareIdentification)
+                de61.subfields().get("01").details()).softwareId());
+        assertEquals("J9A503178108", ((De61Parser.PosSerialNumber)
+                de61.subfields().get("02").details()).serialNumber());
+        var financing = (De61Parser.FinancingData) de61.subfields().get("08").details();
+        assertEquals("02", financing.financingType().code());
+        assertEquals(2, financing.installmentCount());
+        assertEquals("000000", financing.preDatedDate());
+        assertEquals("00", financing.numberOfDays());
+        assertEquals("1000", ((De61Parser.MatrixProduct)
+                de61.subfields().get("14").details()).productCode());
+        var identification = (De61Parser.PositiveIdentification)
+                de61.subfields().get("16").details();
+        assertEquals("05", identification.questionCode());
+        assertEquals("ffffffffffffffff", identification.nextFieldMask());
+        assertEquals(20, identification.responseLength());
+        assertEquals("89550532730019954319", identification.response());
+        assertEquals("0002", ((De61Parser.SecondaryProduct)
+                de61.subfields().get("28").details()).productCode());
     }
 
     @Test
