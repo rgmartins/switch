@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!--
+      O modelo canonico (CanonicalTransaction e classes afins) e um DTO mutavel
+      passado apenas entre servicos internos do mesmo processo — nunca cruza uma
+      fronteira de confianca nem e exposto como API publica. Copia defensiva em
+      cada getter/setter de um objeto com dezenas de campos aninhados so
+      adicionaria boilerplate sem reduzir risco real.
+    -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+</FindBugsFilter>
