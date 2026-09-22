@@ -81,3 +81,29 @@ powershell -ExecutionPolicy Bypass -File .\tools\pos-simulator.ps1 `
 ```
 
 Os dois primeiros bytes do frame são um inteiro binário sem sinal, em ordem de rede (big-endian). O transporte remove esse prefixo antes de entregar o payload ao POS e volta a adicioná-lo na resposta enviada pela mesma conexão.
+
+## Padrão de código
+
+O projeto segue o [Google Java Style Guide](https://google.github.io/styleguide/javaguide.html), aplicado automaticamente pelo formatador `google-java-format`. A ideia é remover qualquer discussão subjetiva de estilo (indentação, imports, quebra de linha) em code review — o formatador decide, não a pessoa.
+
+### Formatação (Spotless)
+
+O plugin `spotless-maven-plugin` está configurado no `pom.xml` raiz e é herdado por todos os módulos. Ele roda automaticamente na fase `validate`, então qualquer `mvn compile`, `mvn test` ou `mvn install` falha se algum arquivo estiver fora do padrão.
+
+Se o build falhar por formatação, corrija com:
+
+```bash
+mvn spotless:apply
+```
+
+Isso reformata todos os módulos no lugar. Não precisa (e não deve) formatar manualmente.
+
+### Análise estática (SpotBugs)
+
+O `spotbugs-maven-plugin` também está declarado no `pom.xml` raiz, mas **não** está amarrado a nenhuma fase do build ainda — rodar manualmente quando quiser uma verificação mais profunda:
+
+```bash
+mvn compile spotbugs:check
+```
+
+Achados do tipo `EI_EXPOSE_REP`/`EI_EXPOSE_REP2` ("pode expor representação interna") são deliberadamente ignorados via `spotbugs-exclude.xml` (na raiz do projeto): o modelo canônico (`CanonicalTransaction` e afins) é um DTO mutável passado só entre serviços internos do mesmo processo, e cópia defensiva em cada getter/setter só adicionaria boilerplate sem reduzir risco real. Outros tipos de achado (bug real de lógica, resource leak, etc.) devem ser investigados caso a caso.
