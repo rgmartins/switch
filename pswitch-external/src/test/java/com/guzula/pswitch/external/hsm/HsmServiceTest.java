@@ -21,16 +21,18 @@ class HsmServiceTest {
     String track = "4123456789012349=29122010000000000000";
     HsmService service =
         new HsmService(
-            (connectionId, payload) -> {
-              assertEquals("HSM", connectionId);
-              requestSent.set(payload.clone());
-              String header = new String(payload, 0, 4, StandardCharsets.US_ASCII);
-              byte[] response =
-                  (header + "SF00" + "%05d".formatted(track.length()) + track)
-                      .getBytes(StandardCharsets.US_ASCII);
-              serviceReference.get().handleInbound(connectionId, response);
-            },
-            Duration.ofSeconds(1));
+            new HsmRequestManager(
+                (connectionId, payload) -> {
+                  assertEquals("HSM", connectionId);
+                  requestSent.set(payload.clone());
+                  String header = new String(payload, 0, 4, StandardCharsets.US_ASCII);
+                  byte[] response =
+                      (header + "SF00" + "%05d".formatted(track.length()) + track)
+                          .getBytes(StandardCharsets.US_ASCII);
+                  serviceReference.get().handleInbound(connectionId, response);
+                },
+                Duration.ofSeconds(1)),
+            new HsmSeProtocol());
     serviceReference.set(service);
     CanonicalTransaction canonical = canonical();
 
@@ -49,7 +51,10 @@ class HsmServiceTest {
 
   @Test
   void failsWhenSfDoesNotArriveBeforeTimeout() {
-    HsmService service = new HsmService((connectionId, payload) -> {}, Duration.ofMillis(20));
+    HsmService service =
+        new HsmService(
+            new HsmRequestManager((connectionId, payload) -> {}, Duration.ofMillis(20)),
+            new HsmSeProtocol());
 
     IllegalStateException error =
         assertThrows(

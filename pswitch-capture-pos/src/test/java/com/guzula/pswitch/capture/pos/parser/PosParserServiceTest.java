@@ -17,6 +17,8 @@ import com.guzula.pswitch.capture.pos.parser.de62.De62Parser;
 import com.guzula.pswitch.comum.ComumService;
 import com.guzula.pswitch.comum.keyblock.KeyblockService;
 import com.guzula.pswitch.comum.terminal.TerminalService;
+import com.guzula.pswitch.external.hsm.HsmRequestManager;
+import com.guzula.pswitch.external.hsm.HsmSeProtocol;
 import com.guzula.pswitch.external.hsm.HsmService;
 import com.guzula.pswitch.registry.keyblock.KeyblockConfig;
 import com.guzula.pswitch.registry.terminal.TerminalConfig;
@@ -242,7 +244,9 @@ class PosParserServiceTest {
             hsmReference.get().handleInbound(connectionId, sf);
           }
         };
-    HsmService hsmService = new HsmService(payloadSender, Duration.ofSeconds(1));
+    HsmService hsmService =
+        new HsmService(
+            new HsmRequestManager(payloadSender, Duration.ofSeconds(1)), new HsmSeProtocol());
     hsmReference.set(hsmService);
     PosService service =
         new PosService(
