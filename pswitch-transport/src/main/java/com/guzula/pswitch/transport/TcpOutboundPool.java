@@ -22,7 +22,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /** Gerencia conexões TCP outbound persistentes sem conhecer protocolos ou comandos de negócio. */
-public class TcpOutboundPool {
+public final class TcpOutboundPool {
 
   private static final Logger LOGGER = Logger.getLogger(TcpOutboundPool.class.getName());
   private static final Duration DEFAULT_RECONNECT_DELAY = Duration.ofSeconds(5);

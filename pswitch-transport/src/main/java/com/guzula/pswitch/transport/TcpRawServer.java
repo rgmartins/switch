@@ -21,7 +21,7 @@ import java.util.Objects;
  * <p>O framing de transporte é resolvido antes da entrega: os dois bytes binários de tamanho são
  * consumidos e apenas o payload completo chega ao consumidor.
  */
-public class TcpRawServer {
+public final class TcpRawServer {
 
   private final InboundMessageConsumer messageConsumer;
   private final TcpConnectionListener connectionListener;

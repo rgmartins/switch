@@ -30,7 +30,7 @@ public final class PosConstants {
     public static final int SOLUTION_SALE_AND_VISA_VALE_12 = 12;
     public static final int QUERY = 13;
     public static final int TICKET = 14;
-    public static final int[][] DEBIT_RANGES_NEW = {{200, 299}, {500, 599}};
+    static final int[][] DEBIT_RANGES_NEW = {{200, 299}, {500, 599}};
 
     private HostFlow() {}
   }
