@@ -85,6 +85,16 @@ Por padrão, o simulador HSM fica disponível em `0.0.0.0:6002`. O log esperado 
 [HSM] Servidor TCP ativo em 0.0.0.0:6002
 ```
 
+Ao iniciar, o `switch` conecta automaticamente ao HSM em `127.0.0.1:6002`. Se o simulador ainda não estiver disponível, o cliente mantém o `switch` ativo e tenta reconectar a cada 5 segundos. O destino pode ser alterado antes de iniciar a aplicação:
+
+```powershell
+$env:PSWITCH_HSM_HOST = "127.0.0.1"
+$env:PSWITCH_HSM_PORT = "6002"
+$env:PSWITCH_HSM_RECONNECT_DELAY_MS = "5000"
+```
+
+Neste estágio, essa conexão valida apenas a disponibilidade do canal TCP. Nenhum comando HSM é emitido pelo módulo de transporte.
+
 Para executar com Docker:
 
 ```powershell

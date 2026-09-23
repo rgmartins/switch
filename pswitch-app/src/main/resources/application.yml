@@ -22,7 +22,10 @@ pswitch:
       - channel: POS
         host: 0.0.0.0
         port: 9000
+    clients:
+      - channel: HSM
+        host: ${PSWITCH_HSM_HOST:127.0.0.1}
+        port: ${PSWITCH_HSM_PORT:6002}
+        reconnect-delay-milliseconds: ${PSWITCH_HSM_RECONNECT_DELAY_MS:5000}
 
-# TODO: portar NetworkConfig (hosts/portas/timeouts dos servidores TCP raw:
-# inbound POS, outbound bandeira) — no projeto original isso é uma collection
-# no MongoDB, carregada no startup pelo NetworkModule.
+# Outros endpoints TCP serão adicionados conforme os respectivos módulos forem portados.
