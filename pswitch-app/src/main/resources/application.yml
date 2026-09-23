@@ -20,10 +20,12 @@ pswitch:
   tcp:
     listeners:
       - channel: POS
+        handler: POS
         host: 0.0.0.0
         port: 9000
     clients:
       - channel: HSM
+        handler: POS
         host: ${PSWITCH_HSM_HOST:127.0.0.1}
         port: ${PSWITCH_HSM_PORT:6002}
         reconnect-delay-milliseconds: ${PSWITCH_HSM_RECONNECT_DELAY_MS:5000}

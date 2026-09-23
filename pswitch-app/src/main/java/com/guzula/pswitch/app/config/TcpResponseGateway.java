@@ -7,7 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.springframework.stereotype.Component;
 
-/** Mantém a associação entre connectionId e a função de escrita no socket. */
+/** Gateway central para enviar bytes por qualquer conexão TCP registrada. */
 @Component
 public class TcpResponseGateway implements OutboundPayloadSender, TcpConnectionListener {
 

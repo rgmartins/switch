@@ -14,10 +14,18 @@ public class TcpClientsConfiguration {
 
   private final TcpServersProperties properties;
   private final TcpOutboundPool outboundPool;
+  private final TcpMessageDispatcher dispatcher;
+  private final TcpResponseGateway responseGateway;
 
-  public TcpClientsConfiguration(TcpServersProperties properties, TcpOutboundPool outboundPool) {
+  public TcpClientsConfiguration(
+      TcpServersProperties properties,
+      TcpOutboundPool outboundPool,
+      TcpMessageDispatcher dispatcher,
+      TcpResponseGateway responseGateway) {
     this.properties = properties;
     this.outboundPool = outboundPool;
+    this.dispatcher = dispatcher;
+    this.responseGateway = responseGateway;
   }
 
   @PostConstruct
@@ -28,7 +36,9 @@ public class TcpClientsConfiguration {
           channel,
           client.host(),
           client.port(),
-          Duration.ofMillis(client.reconnectDelayMilliseconds()));
+          Duration.ofMillis(client.reconnectDelayMilliseconds()),
+          dispatcher.route(client.handler()),
+          responseGateway);
 
       System.out.println(
           AnsiOutput.toString(

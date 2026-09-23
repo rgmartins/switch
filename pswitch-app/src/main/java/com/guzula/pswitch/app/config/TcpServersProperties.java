@@ -11,7 +11,8 @@ public record TcpServersProperties(List<Listener> listeners, List<Client> client
     clients = clients == null ? List.of() : List.copyOf(clients);
   }
 
-  public record Listener(String channel, String host, int port) {}
+  public record Listener(String channel, String handler, String host, int port) {}
 
-  public record Client(String channel, String host, int port, long reconnectDelayMilliseconds) {}
+  public record Client(
+      String channel, String handler, String host, int port, long reconnectDelayMilliseconds) {}
 }

@@ -18,7 +18,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.HexFormat;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.Test;
 
 class PosParserServiceTest {
@@ -214,15 +215,20 @@ class PosParserServiceTest {
   }
 
   @Test
-  void posServiceEchoesExactlyTheReceivedBytes() {
+  void posServiceEchoesReceivedBytesAndSendsG0ToHsm() {
     byte[] payload = HexFormat.of().parseHex("60000000006f12000000000000000000");
-    AtomicReference<byte[]> sent = new AtomicReference<>();
+    Map<String, byte[]> sent = new ConcurrentHashMap<>();
     PosService service =
         new PosService(
-            (connectionId, response) -> sent.set(response), parser, new PosMapperService());
+            (connectionId, response) -> sent.put(connectionId, response),
+            parser,
+            new PosMapperService());
 
     service.handleInbound("connection-1", payload);
 
-    assertArrayEquals(payload, sent.get());
+    assertArrayEquals(payload, sent.get("connection-1"));
+    assertEquals(128, sent.get("HSM").length);
+    assertEquals(
+        "9876G0", new String(sent.get("HSM"), 0, 6, java.nio.charset.StandardCharsets.US_ASCII));
   }
 }

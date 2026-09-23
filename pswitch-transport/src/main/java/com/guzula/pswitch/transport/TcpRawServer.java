@@ -15,7 +15,7 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import java.util.Objects;
 
 /**
- * Servidor TCP inbound (recebe conexões de terminais POS / origem). Referência: TcpRawServer em
+ * Servidor TCP inbound genérico. Referência: TcpRawServer em
  * src/shared/transporters/tcp-raw.server.ts (guzula-switch).
  *
  * <p>O framing de transporte é resolvido antes da entrega: os dois bytes binários de tamanho são

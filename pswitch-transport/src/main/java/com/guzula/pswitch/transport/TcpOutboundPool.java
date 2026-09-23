@@ -2,6 +2,7 @@ package com.guzula.pswitch.transport;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
@@ -40,12 +41,32 @@ public final class TcpOutboundPool {
   }
 
   public void connect(String connectionId, String host, int port, Duration reconnectDelay) {
+    connect(
+        connectionId,
+        host,
+        port,
+        reconnectDelay,
+        (ignoredConnectionId, ignoredPayload) -> {},
+        TcpConnectionListener.noop());
+  }
+
+  public void connect(
+      String connectionId,
+      String host,
+      int port,
+      Duration reconnectDelay,
+      InboundMessageConsumer messageConsumer,
+      TcpConnectionListener connectionListener) {
     validate(connectionId, host, port, reconnectDelay);
+    Objects.requireNonNull(messageConsumer, "Consumidor de mensagens é obrigatório");
+    Objects.requireNonNull(connectionListener, "Listener de conexão é obrigatório");
     if (stopping.get()) {
       throw new IllegalStateException("O pool TCP outbound já foi encerrado");
     }
 
-    ManagedConnection connection = new ManagedConnection(connectionId, host, port, reconnectDelay);
+    ManagedConnection connection =
+        new ManagedConnection(
+            connectionId, host, port, reconnectDelay, messageConsumer, connectionListener);
     if (connections.putIfAbsent(connectionId, connection) != null) {
       throw new IllegalArgumentException("Conexão TCP já configurada: " + connectionId);
     }
@@ -92,15 +113,25 @@ public final class TcpOutboundPool {
     private final String host;
     private final int port;
     private final Duration reconnectDelay;
+    private final InboundMessageConsumer messageConsumer;
+    private final TcpConnectionListener connectionListener;
     private final AtomicBoolean connecting = new AtomicBoolean();
     private final AtomicBoolean reconnectScheduled = new AtomicBoolean();
     private volatile Channel channel;
 
-    private ManagedConnection(String connectionId, String host, int port, Duration reconnectDelay) {
+    private ManagedConnection(
+        String connectionId,
+        String host,
+        int port,
+        Duration reconnectDelay,
+        InboundMessageConsumer messageConsumer,
+        TcpConnectionListener connectionListener) {
       this.connectionId = connectionId;
       this.host = host;
       this.port = port;
       this.reconnectDelay = reconnectDelay;
+      this.messageConsumer = messageConsumer;
+      this.connectionListener = connectionListener;
     }
 
     private void connect() {
@@ -132,7 +163,6 @@ public final class TcpOutboundPool {
           future -> {
             connecting.set(false);
             if (future.isSuccess()) {
-              channel = connectFuture.channel();
               LOGGER.info(() -> "Conexão " + connectionId + " estabelecida");
             } else {
               LOGGER.log(
@@ -164,8 +194,15 @@ public final class TcpOutboundPool {
       return currentChannel != null && currentChannel.isActive();
     }
 
+    private void connected(Channel connectedChannel) {
+      channel = connectedChannel;
+      connectionListener.connected(
+          connectionId, payload -> connectedChannel.writeAndFlush(Unpooled.wrappedBuffer(payload)));
+    }
+
     private void disconnected() {
       channel = null;
+      connectionListener.disconnected(connectionId);
       if (!stopping.get()) {
         LOGGER.warning(() -> "Conexão " + connectionId + " encerrada; reconectando");
         scheduleReconnect();
@@ -191,8 +228,15 @@ public final class TcpOutboundPool {
     }
 
     @Override
+    public void channelActive(ChannelHandlerContext context) {
+      connection.connected(context.channel());
+    }
+
+    @Override
     protected void channelRead0(ChannelHandlerContext context, ByteBuf message) {
-      // Nenhum protocolo externo é tratado pela camada de transporte.
+      byte[] bytes = new byte[message.readableBytes()];
+      message.readBytes(bytes);
+      connection.messageConsumer.accept(connection.connectionId, bytes);
     }
 
     @Override

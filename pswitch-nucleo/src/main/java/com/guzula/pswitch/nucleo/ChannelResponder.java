@@ -12,7 +12,7 @@ import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 public interface ChannelResponder {
 
   /** Identificador do canal de origem (ex.: "POS"). */
-  String channel();
+  String channelName();
 
   void sendResponse(CanonicalTransaction transaction);
 }

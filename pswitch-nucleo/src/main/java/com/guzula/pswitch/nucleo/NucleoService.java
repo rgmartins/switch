@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
  * armazenamento da transação (pswitch-comum). Referência: nucleo.service.ts (guzula-switch).
  *
  * <p>TODO: injetar List<BrandHandler> e List<ChannelResponder> via Spring, indexar por
- * brand()/channel() e portar a lógica de roteamento.
+ * brand()/channelName() e portar a lógica de roteamento.
  */
 @Service
 public class NucleoService {

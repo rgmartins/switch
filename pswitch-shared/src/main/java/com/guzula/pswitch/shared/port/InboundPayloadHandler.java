@@ -6,7 +6,7 @@ package com.guzula.pswitch.shared.port;
  */
 public interface InboundPayloadHandler {
 
-  String channel();
+  String handlerName();
 
   void handleInbound(String connectionId, byte[] payload);
 }

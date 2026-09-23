@@ -54,6 +54,30 @@ mvn clean install
 mvn -pl pswitch-app -am spring-boot:run
 ```
 
+## Usar o transporte TCP
+
+Cada listener ou cliente aponta para um handler pelo `application.yml`:
+
+```yaml
+pswitch:
+  tcp:
+    listeners:
+      - channel: POS
+        handler: POS
+        host: 0.0.0.0
+        port: 9000
+```
+
+O componente que recebe as mensagens implementa `InboundPayloadHandler` e retorna o mesmo nome em
+`handlerName()`. Para enviar dados, basta injetar `OutboundPayloadSender`:
+
+```java
+payloadSender.send(connectionId, payload);
+```
+
+Conexões inbound recebem um identificador gerado pelo Netty. Para clientes outbound persistentes,
+como o HSM, o valor de `channel` (`HSM`) é o identificador usado no envio.
+
 ## Estado atual
 
 Só esqueleto: assinaturas de classes/métodos espelhando os arquivos do `guzula-switch`,
