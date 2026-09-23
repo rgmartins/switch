@@ -14,10 +14,13 @@ public class HsmService implements InboundPayloadHandler {
 
   private final HsmRequestManager requestManager;
   private final HsmSeProtocol seProtocol;
+  private final HsmG0Protocol g0Protocol;
 
-  public HsmService(HsmRequestManager requestManager, HsmSeProtocol seProtocol) {
+  public HsmService(
+      HsmRequestManager requestManager, HsmSeProtocol seProtocol, HsmG0Protocol g0Protocol) {
     this.requestManager = requestManager;
     this.seProtocol = seProtocol;
+    this.g0Protocol = g0Protocol;
   }
 
   @Override
@@ -39,6 +42,16 @@ public class HsmService implements InboundPayloadHandler {
     LOGGER.info("Resposta SF processada com sucesso");
   }
 
+  public void translatePinBlock(
+      CanonicalTransaction canonical, String sourceKey, String destinationKey) {
+    byte[] request = g0Protocol.buildG0Request(canonical, sourceKey, destinationKey);
+    byte[] response = requestManager.sendAndWait("G0", "G1", request);
+
+    HsmG0Protocol.G1Result result = g0Protocol.parseG1Response(response);
+    populateTranslatedPinBlock(canonical, result);
+    LOGGER.info("Resposta G1 processada com sucesso");
+  }
+
   private void populateCard(CanonicalTransaction canonical, HsmSeProtocol.SeResult result) {
     CanonicalTransaction.Card card = canonical.getCard();
     if (card == null) {
@@ -50,5 +63,10 @@ public class HsmService implements InboundPayloadHandler {
     card.setCardNumber(result.cardNumber());
     card.setExpirationDate(result.expirationDate());
     card.setServiceCode(result.serviceCode());
+  }
+
+  private void populateTranslatedPinBlock(
+      CanonicalTransaction canonical, HsmG0Protocol.G1Result result) {
+    canonical.getSecurity().setPinBlock(result.pinBlock());
   }
 }

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 class HsmServiceTest {
 
   private static final String SOURCE_KEY = "0123456789ABCDEFFEDCBA9876543210";
+  private static final String DESTINATION_KEY = "FEDCBA98765432100123456789ABCDEF";
 
   @Test
   void sendsSeWaitsForSfAndPopulatesCard() {
@@ -32,7 +33,8 @@ class HsmServiceTest {
                   serviceReference.get().handleInbound(connectionId, response);
                 },
                 Duration.ofSeconds(1)),
-            new HsmSeProtocol());
+            new HsmSeProtocol(),
+            new HsmG0Protocol());
     serviceReference.set(service);
     CanonicalTransaction canonical = canonical();
 
@@ -54,13 +56,47 @@ class HsmServiceTest {
     HsmService service =
         new HsmService(
             new HsmRequestManager((connectionId, payload) -> {}, Duration.ofMillis(20)),
-            new HsmSeProtocol());
+            new HsmSeProtocol(),
+            new HsmG0Protocol());
 
     IllegalStateException error =
         assertThrows(
             IllegalStateException.class, () -> service.decryptCardData(canonical(), SOURCE_KEY));
 
     assertTrue(error.getMessage().contains("Timeout aguardando resposta SF"));
+  }
+
+  @Test
+  void sendsG0WaitsForG1AndUpdatesPinBlock() {
+    AtomicReference<byte[]> requestSent = new AtomicReference<>();
+    AtomicReference<HsmService> serviceReference = new AtomicReference<>();
+    String translatedPinBlock = "FEDCBA9876543210";
+    HsmService service =
+        new HsmService(
+            new HsmRequestManager(
+                (connectionId, payload) -> {
+                  requestSent.set(payload.clone());
+                  String header = new String(payload, 0, 4, StandardCharsets.US_ASCII);
+                  byte[] response =
+                      (header + "G10016" + translatedPinBlock).getBytes(StandardCharsets.US_ASCII);
+                  serviceReference.get().handleInbound(connectionId, response);
+                },
+                Duration.ofSeconds(1)),
+            new HsmSeProtocol(),
+            new HsmG0Protocol());
+    serviceReference.set(service);
+    CanonicalTransaction canonical = canonical();
+
+    service.translatePinBlock(canonical, SOURCE_KEY, DESTINATION_KEY);
+
+    String request = new String(requestSent.get(), StandardCharsets.US_ASCII);
+    assertEquals(
+        "0000G0"
+            + SOURCE_KEY
+            + DESTINATION_KEY
+            + "A05FFFFF1700168A060069C0123456789ABCDEF0101345678901234%01",
+        request);
+    assertEquals(translatedPinBlock, canonical.getSecurity().getPinBlock());
   }
 
   private CanonicalTransaction canonical() {
@@ -71,9 +107,12 @@ class HsmServiceTest {
     CanonicalTransaction.Security security = new CanonicalTransaction.Security();
     security.setKsn(ksn);
     security.setEncryptedCardData("A1B2C3D4E5F6");
+    security.setPinBlock("0123456789ABCDEF");
     CanonicalTransaction canonical = new CanonicalTransaction();
     canonical.setSecurity(security);
-    canonical.setCard(new CanonicalTransaction.Card());
+    CanonicalTransaction.Card card = new CanonicalTransaction.Card();
+    card.setCardNumber("4123456789012349");
+    canonical.setCard(card);
     return canonical;
   }
 }
