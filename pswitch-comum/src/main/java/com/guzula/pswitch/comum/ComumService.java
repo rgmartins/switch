@@ -1,5 +1,6 @@
 package com.guzula.pswitch.comum;
 
+import com.guzula.pswitch.comum.keyblock.KeyblockService;
 import com.guzula.pswitch.comum.terminal.TerminalService;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import org.springframework.stereotype.Service;
@@ -12,13 +13,16 @@ import org.springframework.stereotype.Service;
 public class ComumService {
 
   private final TerminalService terminalService;
+  private final KeyblockService keyblockService;
 
-  public ComumService(TerminalService terminalService) {
+  public ComumService(TerminalService terminalService, KeyblockService keyblockService) {
     this.terminalService = terminalService;
+    this.keyblockService = keyblockService;
   }
 
   public CanonicalTransaction process(CanonicalTransaction canonical) {
     terminalService.populate(canonical);
+    keyblockService.getSourceKey(canonical);
     return canonical;
   }
 }

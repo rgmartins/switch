@@ -15,7 +15,9 @@ import com.guzula.pswitch.capture.pos.parser.de60.De60Parser;
 import com.guzula.pswitch.capture.pos.parser.de61.De61Parser;
 import com.guzula.pswitch.capture.pos.parser.de62.De62Parser;
 import com.guzula.pswitch.comum.ComumService;
+import com.guzula.pswitch.comum.keyblock.KeyblockService;
 import com.guzula.pswitch.comum.terminal.TerminalService;
+import com.guzula.pswitch.registry.keyblock.KeyblockConfig;
 import com.guzula.pswitch.registry.terminal.TerminalConfig;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -220,7 +222,7 @@ class PosParserServiceTest {
 
   @Test
   void posServiceEchoesReceivedBytesAndSendsG0ToHsm() {
-    byte[] payload = HexFormat.of().parseHex("60000000006f12000000000000000000");
+    byte[] payload = HexFormat.of().parseHex(MESSAGE_HEX);
     Map<String, byte[]> sent = new ConcurrentHashMap<>();
     PosService service =
         new PosService(
@@ -242,7 +244,17 @@ class PosParserServiceTest {
                                     "Sao Paulo",
                                     "01001000",
                                     "SP",
-                                    "BR"))))));
+                                    "BR")))),
+                new KeyblockService(
+                    keyblockId ->
+                        Optional.of(
+                            new KeyblockConfig(
+                                "mongo-key-id",
+                                keyblockId,
+                                "2026-01-01T00:00:00Z",
+                                "0123456789ABCDEFFEDCBA9876543210",
+                                "",
+                                "")))));
 
     service.handleInbound("connection-1", payload);
 

@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.guzula.pswitch.comum.ComumService;
+import com.guzula.pswitch.comum.keyblock.KeyblockService;
+import com.guzula.pswitch.registry.keyblock.KeyblockConfig;
 import com.guzula.pswitch.registry.terminal.TerminalConfig;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import java.util.Optional;
@@ -37,9 +39,25 @@ class TerminalServiceTest {
                         true,
                         true,
                         false)));
-    ComumService comumService = new ComumService(terminalService);
+    KeyblockService keyblockService =
+        new KeyblockService(
+            keyblockId ->
+                Optional.of(
+                    new KeyblockConfig(
+                        "mongo-key-id",
+                        keyblockId,
+                        "2026-01-01T00:00:00Z",
+                        "0123456789ABCDEFFEDCBA9876543210",
+                        "",
+                        "")));
+    ComumService comumService = new ComumService(terminalService, keyblockService);
     CanonicalTransaction canonical = new CanonicalTransaction();
     canonical.setTerminalId("01361475");
+    CanonicalTransaction.Security.Ksn ksn = new CanonicalTransaction.Security.Ksn();
+    ksn.setBdkIndicator("fffff17001");
+    CanonicalTransaction.Security security = new CanonicalTransaction.Security();
+    security.setKsn(ksn);
+    canonical.setSecurity(security);
 
     assertSame(canonical, comumService.process(canonical));
 

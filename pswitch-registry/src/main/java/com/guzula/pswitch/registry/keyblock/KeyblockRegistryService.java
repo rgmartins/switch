@@ -1,16 +1,28 @@
 package com.guzula.pswitch.registry.keyblock;
 
+import java.util.Optional;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
-/**
- * Referência: keyblock-registry.service.ts (guzula-switch). TODO: carregar keyblocks do MongoDB no
- * startup.
- */
+/** Consulta as chaves na coleção MongoDB {@code Keyblock}. */
 @Service
 public class KeyblockRegistryService implements KeyblockRegistry {
 
+  private final MongoTemplate mongoTemplate;
+
+  public KeyblockRegistryService(MongoTemplate mongoTemplate) {
+    this.mongoTemplate = mongoTemplate;
+  }
+
   @Override
-  public Object findByKeyblockId(String keyblockId) {
-    throw new UnsupportedOperationException("TODO: portar keyblock-registry.service.ts");
+  public Optional<KeyblockConfig> findByKeyblockId(String keyblockId) {
+    if (keyblockId == null || keyblockId.isBlank()) {
+      return Optional.empty();
+    }
+
+    Query query = Query.query(Criteria.where("key").is(keyblockId));
+    return Optional.ofNullable(mongoTemplate.findOne(query, KeyblockConfig.class));
   }
 }
