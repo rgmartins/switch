@@ -22,6 +22,10 @@
     </dependency>
     <dependency>
       <groupId>com.guzula.pswitch</groupId>
+      <artifactId>pswitch-registry</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.guzula.pswitch</groupId>
       <artifactId>pswitch-comum</artifactId>
     </dependency>
     <dependency>

@@ -46,10 +46,6 @@ public class PosMapperService {
     canonical.setAnotacoes(anotacoes(transaction));
     canonical.setRegistros(List.of());
     canonical.setInteracoes(List.of());
-    System.out.println("************************************");
-    System.out.println("* Esta é a classe PosMapperService *");
-    System.out.println("************************************");
-    System.out.println(canonical);
     return canonical;
   }
 

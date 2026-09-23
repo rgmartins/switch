@@ -14,11 +14,13 @@ import com.guzula.pswitch.capture.pos.parser.de55.De55Parser;
 import com.guzula.pswitch.capture.pos.parser.de60.De60Parser;
 import com.guzula.pswitch.capture.pos.parser.de61.De61Parser;
 import com.guzula.pswitch.capture.pos.parser.de62.De62Parser;
+import com.guzula.pswitch.registry.terminal.TerminalConfig;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.Test;
 
@@ -222,7 +224,21 @@ class PosParserServiceTest {
         new PosService(
             (connectionId, response) -> sent.put(connectionId, response),
             parser,
-            new PosMapperService());
+            new PosMapperService(),
+            terminalId ->
+                Optional.of(
+                    new TerminalConfig(
+                        "mongo-id",
+                        terminalId,
+                        new TerminalConfig.Address(
+                            "Rua Teste",
+                            "1",
+                            null,
+                            "Centro",
+                            "Sao Paulo",
+                            "01001000",
+                            "SP",
+                            "BR"))));
 
     service.handleInbound("connection-1", payload);
 

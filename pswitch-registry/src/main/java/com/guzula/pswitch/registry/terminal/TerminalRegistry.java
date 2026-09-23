@@ -1,9 +1,11 @@
 package com.guzula.pswitch.registry.terminal;
 
+import java.util.Optional;
+
 /**
  * Contrato do registry de terminais. Referência: terminal-registry.interface.ts (guzula-switch).
  */
 public interface TerminalRegistry {
 
-  Object findByTerminalId(String terminalId);
+  Optional<TerminalConfig> findByTerminalId(String terminalId);
 }
