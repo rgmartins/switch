@@ -25,9 +25,12 @@ pswitch:
         port: 9000
     clients:
       - channel: HSM
-        handler: POS
+        handler: HSM
         host: ${PSWITCH_HSM_HOST:127.0.0.1}
         port: ${PSWITCH_HSM_PORT:6002}
         reconnect-delay-milliseconds: ${PSWITCH_HSM_RECONNECT_DELAY_MS:5000}
+
+  hsm:
+    response-timeout: ${PSWITCH_HSM_RESPONSE_TIMEOUT:5s}
 
 # Outros endpoints TCP serão adicionados conforme os respectivos módulos forem portados.

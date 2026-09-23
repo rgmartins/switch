@@ -17,15 +17,20 @@ import com.guzula.pswitch.capture.pos.parser.de62.De62Parser;
 import com.guzula.pswitch.comum.ComumService;
 import com.guzula.pswitch.comum.keyblock.KeyblockService;
 import com.guzula.pswitch.comum.terminal.TerminalService;
+import com.guzula.pswitch.external.hsm.HsmService;
 import com.guzula.pswitch.registry.keyblock.KeyblockConfig;
 import com.guzula.pswitch.registry.terminal.TerminalConfig;
+import com.guzula.pswitch.shared.port.OutboundPayloadSender;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class PosParserServiceTest {
@@ -221,12 +226,27 @@ class PosParserServiceTest {
   }
 
   @Test
-  void posServiceEchoesReceivedBytesAndSendsG0ToHsm() {
+  void posServiceEchoesReceivedBytesAndExecutesSeOnHsm() {
     byte[] payload = HexFormat.of().parseHex(MESSAGE_HEX);
     Map<String, byte[]> sent = new ConcurrentHashMap<>();
+    AtomicReference<HsmService> hsmReference = new AtomicReference<>();
+    OutboundPayloadSender payloadSender =
+        (connectionId, response) -> {
+          sent.put(connectionId, response);
+          if ("HSM".equals(connectionId)) {
+            String header = new String(response, 0, 4, StandardCharsets.US_ASCII);
+            String track = "4123456789012349=29122010000000000000";
+            byte[] sf =
+                (header + "SF00" + "%05d".formatted(track.length()) + track)
+                    .getBytes(StandardCharsets.US_ASCII);
+            hsmReference.get().handleInbound(connectionId, sf);
+          }
+        };
+    HsmService hsmService = new HsmService(payloadSender, Duration.ofSeconds(1));
+    hsmReference.set(hsmService);
     PosService service =
         new PosService(
-            (connectionId, response) -> sent.put(connectionId, response),
+            payloadSender,
             parser,
             new PosMapperService(),
             new ComumService(
@@ -254,13 +274,12 @@ class PosParserServiceTest {
                                 "2026-01-01T00:00:00Z",
                                 "0123456789ABCDEFFEDCBA9876543210",
                                 "",
-                                "")))));
+                                ""))),
+                hsmService));
 
     service.handleInbound("connection-1", payload);
 
     assertArrayEquals(payload, sent.get("connection-1"));
-    assertEquals(128, sent.get("HSM").length);
-    assertEquals(
-        "9876G0", new String(sent.get("HSM"), 0, 6, java.nio.charset.StandardCharsets.US_ASCII));
+    assertEquals("SE", new String(sent.get("HSM"), 4, 2, StandardCharsets.US_ASCII));
   }
 }
