@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 
 import com.guzula.pswitch.comum.ComumService;
+import com.guzula.pswitch.comum.bin.BinService;
 import com.guzula.pswitch.comum.keyblock.KeyblockService;
 import com.guzula.pswitch.external.hsm.HsmService;
 import com.guzula.pswitch.registry.keyblock.KeyblockConfig;
@@ -53,7 +54,9 @@ class TerminalServiceTest {
                         "",
                         "")));
     HsmService hsmService = mock(HsmService.class);
-    ComumService comumService = new ComumService(terminalService, keyblockService, hsmService);
+    ComumService comumService =
+        new ComumService(
+            terminalService, new BinService(pan -> Optional.empty()), keyblockService, hsmService);
     CanonicalTransaction canonical = new CanonicalTransaction();
     canonical.setTerminalId("01361475");
     CanonicalTransaction.Security.Ksn ksn = new CanonicalTransaction.Security.Ksn();

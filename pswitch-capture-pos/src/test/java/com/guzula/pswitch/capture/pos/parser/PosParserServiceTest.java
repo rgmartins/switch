@@ -15,12 +15,14 @@ import com.guzula.pswitch.capture.pos.parser.de60.De60Parser;
 import com.guzula.pswitch.capture.pos.parser.de61.De61Parser;
 import com.guzula.pswitch.capture.pos.parser.de62.De62Parser;
 import com.guzula.pswitch.comum.ComumService;
+import com.guzula.pswitch.comum.bin.BinService;
 import com.guzula.pswitch.comum.keyblock.KeyblockService;
 import com.guzula.pswitch.comum.terminal.TerminalService;
 import com.guzula.pswitch.external.hsm.HsmG0Protocol;
 import com.guzula.pswitch.external.hsm.HsmRequestManager;
 import com.guzula.pswitch.external.hsm.HsmSeProtocol;
 import com.guzula.pswitch.external.hsm.HsmService;
+import com.guzula.pswitch.registry.bin.BinConfig;
 import com.guzula.pswitch.registry.keyblock.KeyblockConfig;
 import com.guzula.pswitch.registry.terminal.TerminalConfig;
 import com.guzula.pswitch.shared.port.OutboundPayloadSender;
@@ -229,7 +231,7 @@ class PosParserServiceTest {
   }
 
   @Test
-  void posServiceEchoesReceivedBytesAndExecutesSeOnHsm() {
+  void posServiceEchoesReceivedBytesAndExecutesSeAndG0OnHsm() {
     byte[] payload = HexFormat.of().parseHex(MESSAGE_HEX);
     Map<String, byte[]> sent = new ConcurrentHashMap<>();
     AtomicReference<HsmService> hsmReference = new AtomicReference<>();
@@ -238,11 +240,18 @@ class PosParserServiceTest {
           sent.put(connectionId, response);
           if ("HSM".equals(connectionId)) {
             String header = new String(response, 0, 4, StandardCharsets.US_ASCII);
-            String track = "4123456789012349=29122010000000000000";
-            byte[] sf =
-                (header + "SF00" + "%05d".formatted(track.length()) + track)
-                    .getBytes(StandardCharsets.US_ASCII);
-            hsmReference.get().handleInbound(connectionId, sf);
+            String command = new String(response, 4, 2, StandardCharsets.US_ASCII);
+            sent.put("HSM-" + command, response);
+            if ("SE".equals(command)) {
+              String track = "4123456789012349=29122010000000000000";
+              byte[] sf =
+                  (header + "SF00" + "%05d".formatted(track.length()) + track)
+                      .getBytes(StandardCharsets.US_ASCII);
+              hsmReference.get().handleInbound(connectionId, sf);
+            } else if ("G0".equals(command)) {
+              byte[] g1 = (header + "G10016FEDCBA9876543210").getBytes(StandardCharsets.US_ASCII);
+              hsmReference.get().handleInbound(connectionId, g1);
+            }
           }
         };
     HsmService hsmService =
@@ -272,6 +281,25 @@ class PosParserServiceTest {
                                     "01001000",
                                     "SP",
                                     "BR")))),
+                new BinService(
+                    pan ->
+                        Optional.of(
+                            new BinConfig(
+                                "4158960000000000000",
+                                "4158960000000000000",
+                                "4158969999999999999",
+                                "Cartão de Teste Visa",
+                                999,
+                                "BR",
+                                1,
+                                1,
+                                1,
+                                false,
+                                true,
+                                false,
+                                false,
+                                false,
+                                "C"))),
                 new KeyblockService(
                     keyblockId ->
                         Optional.of(
@@ -279,7 +307,9 @@ class PosParserServiceTest {
                                 "mongo-key-id",
                                 keyblockId,
                                 "2026-01-01T00:00:00Z",
-                                "0123456789ABCDEFFEDCBA9876543210",
+                                "brand-1".equals(keyblockId)
+                                    ? "FEDCBA98765432100123456789ABCDEF"
+                                    : "0123456789ABCDEFFEDCBA9876543210",
                                 "",
                                 ""))),
                 hsmService));
@@ -287,6 +317,7 @@ class PosParserServiceTest {
     service.handleInbound("connection-1", payload);
 
     assertArrayEquals(payload, sent.get("connection-1"));
-    assertEquals("SE", new String(sent.get("HSM"), 4, 2, StandardCharsets.US_ASCII));
+    assertEquals("SE", new String(sent.get("HSM-SE"), 4, 2, StandardCharsets.US_ASCII));
+    assertEquals("G0", new String(sent.get("HSM-G0"), 4, 2, StandardCharsets.US_ASCII));
   }
 }

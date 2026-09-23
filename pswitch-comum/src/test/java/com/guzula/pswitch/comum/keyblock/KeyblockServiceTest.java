@@ -42,6 +42,23 @@ class KeyblockServiceTest {
         IllegalStateException.class, () -> service.getSourceKey(new CanonicalTransaction()));
   }
 
+  @Test
+  void loadsDestinationKeyUsingBinKeyblockId() {
+    AtomicReference<String> requestedId = new AtomicReference<>();
+    KeyblockConfig expected =
+        new KeyblockConfig(
+            "brand-key", "brand-1", "2026-01-01T00:00:00Z", "destination-key", "", "");
+    KeyblockService service =
+        new KeyblockService(
+            keyblockId -> {
+              requestedId.set(keyblockId);
+              return Optional.of(expected);
+            });
+
+    assertEquals(expected, service.getKey("brand-1"));
+    assertEquals("brand-1", requestedId.get());
+  }
+
   private CanonicalTransaction canonicalWithBdkIndicator(String bdkIndicator) {
     CanonicalTransaction.Security.Ksn ksn = new CanonicalTransaction.Security.Ksn();
     ksn.setBdkIndicator(bdkIndicator);

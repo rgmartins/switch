@@ -19,7 +19,10 @@ public class KeyblockService {
   }
 
   public KeyblockConfig getSourceKey(CanonicalTransaction canonical) {
-    String keyblockId = bdkIndicator(canonical);
+    return getKey(bdkIndicator(canonical));
+  }
+
+  public KeyblockConfig getKey(String keyblockId) {
     KeyblockConfig keyblock =
         keyblockRegistry
             .findByKeyblockId(keyblockId)
