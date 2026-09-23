@@ -14,6 +14,8 @@ import com.guzula.pswitch.capture.pos.parser.de55.De55Parser;
 import com.guzula.pswitch.capture.pos.parser.de60.De60Parser;
 import com.guzula.pswitch.capture.pos.parser.de61.De61Parser;
 import com.guzula.pswitch.capture.pos.parser.de62.De62Parser;
+import com.guzula.pswitch.comum.ComumService;
+import com.guzula.pswitch.comum.terminal.TerminalService;
 import com.guzula.pswitch.registry.terminal.TerminalConfig;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -225,20 +227,22 @@ class PosParserServiceTest {
             (connectionId, response) -> sent.put(connectionId, response),
             parser,
             new PosMapperService(),
-            terminalId ->
-                Optional.of(
-                    new TerminalConfig(
-                        "mongo-id",
-                        terminalId,
-                        new TerminalConfig.Address(
-                            "Rua Teste",
-                            "1",
-                            null,
-                            "Centro",
-                            "Sao Paulo",
-                            "01001000",
-                            "SP",
-                            "BR"))));
+            new ComumService(
+                new TerminalService(
+                    terminalId ->
+                        Optional.of(
+                            new TerminalConfig(
+                                "mongo-id",
+                                terminalId,
+                                new TerminalConfig.Address(
+                                    "Rua Teste",
+                                    "1",
+                                    null,
+                                    "Centro",
+                                    "Sao Paulo",
+                                    "01001000",
+                                    "SP",
+                                    "BR"))))));
 
     service.handleInbound("connection-1", payload);
 

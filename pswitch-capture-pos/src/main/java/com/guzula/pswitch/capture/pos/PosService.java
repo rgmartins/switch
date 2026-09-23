@@ -2,9 +2,8 @@ package com.guzula.pswitch.capture.pos;
 
 import com.guzula.pswitch.capture.pos.parser.PosMessage;
 import com.guzula.pswitch.capture.pos.parser.PosParserService;
+import com.guzula.pswitch.comum.ComumService;
 import com.guzula.pswitch.nucleo.ChannelResponder;
-import com.guzula.pswitch.registry.terminal.TerminalConfig;
-import com.guzula.pswitch.registry.terminal.TerminalRegistry;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import com.guzula.pswitch.shared.port.InboundPayloadHandler;
 import com.guzula.pswitch.shared.port.OutboundPayloadSender;
@@ -32,18 +31,18 @@ public class PosService implements ChannelResponder, InboundPayloadHandler {
   private final OutboundPayloadSender payloadSender;
   private final PosParserService parser;
   private final PosMapperService mapper;
-  private final TerminalRegistry terminalRegistry;
+  private final ComumService comumService;
   private final AtomicReference<byte[]> lastG1Response = new AtomicReference<>();
 
   public PosService(
       OutboundPayloadSender payloadSender,
       PosParserService parser,
       PosMapperService mapper,
-      TerminalRegistry terminalRegistry) {
+      ComumService comumService) {
     this.payloadSender = payloadSender;
     this.parser = parser;
     this.mapper = mapper;
-    this.terminalRegistry = terminalRegistry;
+    this.comumService = comumService;
   }
 
   @Override
@@ -73,10 +72,10 @@ public class PosService implements ChannelResponder, InboundPayloadHandler {
     System.out.print(message.toMultilineString());
 
     CanonicalTransaction canonical = mapper.toCanonical(message, connectionId);
-    populateTerminalData(canonical);
-    System.out.println("************************************");
-    System.out.println("* Canônico com dados do terminal   *");
-    System.out.println("************************************");
+    comumService.process(canonical);
+    System.out.println("****************************************");
+    System.out.println("* Canônico com dados do terminal new   *");
+    System.out.println("****************************************");
     System.out.println(canonical);
     System.out.printf(
         "Canonical  terminalId=%s valorCentavos=%d moeda=%s%n",
@@ -86,67 +85,6 @@ public class PosService implements ChannelResponder, InboundPayloadHandler {
 
     payloadSender.send(connectionId, payload);
     sendComandoG0();
-  }
-
-  void populateTerminalData(CanonicalTransaction canonical) {
-    TerminalConfig terminal =
-        terminalRegistry
-            .findByTerminalId(canonical.getTerminalId())
-            .orElseThrow(
-                () ->
-                    new IllegalStateException(
-                        "Terminal não cadastrado: " + canonical.getTerminalId()));
-
-    TerminalConfig.Address source = terminal.address();
-    if (source == null) {
-      throw new IllegalStateException(
-          "Terminal sem endereço cadastrado: " + canonical.getTerminalId());
-    }
-
-    CanonicalTransaction.Merchant merchant = canonical.getMerchant();
-    if (merchant == null) {
-      merchant = new CanonicalTransaction.Merchant();
-      canonical.setMerchant(merchant);
-    }
-
-    merchant.setName(terminal.merchantName());
-    if (merchant.getMerchant() == null || merchant.getMerchant().isBlank()) {
-      merchant.setMerchant(asString(terminal.merchantId()));
-    }
-    if (merchant.getStore() == null || merchant.getStore().isBlank()) {
-      merchant.setStore(asString(terminal.storeId()));
-    }
-    merchant.setMerchantPhysical(asString(terminal.merchantPhysical()));
-    merchant.setStorePhysical(asString(terminal.storePhysical()));
-    merchant.setMerchantHeadquarters(asString(terminal.merchantHeadquarters()));
-    merchant.setStoreHeadquarters(asString(terminal.storeHeadquarters()));
-    merchant.setPerson(terminal.person());
-    merchant.setCnpjOrCpf(terminal.cnpjOrCpf());
-
-    CanonicalTransaction.Merchant.Address address = new CanonicalTransaction.Merchant.Address();
-    address.setStreet(source.street());
-    address.setNumber(source.number());
-    address.setComplement(source.complement());
-    address.setNeighborhood(source.neighborhood());
-    address.setCity(source.city());
-    address.setZipCode(source.zipCode());
-    address.setUf(source.uf());
-    address.setCountry(source.country());
-    merchant.setAddress(address);
-
-    CanonicalTransaction.Equipment equipment = canonical.getEquipment();
-    if (equipment == null) {
-      equipment = new CanonicalTransaction.Equipment();
-      canonical.setEquipment(equipment);
-    }
-    equipment.setMobilePaymentType(terminal.mobilePaymentType());
-    equipment.setDoesPreAuth(terminal.doesPreAuth());
-    equipment.setDoesDcc(terminal.doesDcc());
-    equipment.setTerminalBlocked(terminal.blocked());
-  }
-
-  private String asString(Long value) {
-    return value == null ? null : value.toString();
   }
 
   public void sendComandoG0() {
