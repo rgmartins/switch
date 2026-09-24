@@ -7,10 +7,20 @@ import java.lang.reflect.RecordComponent;
 import java.util.Iterator;
 import java.util.Map;
 
-/** Formata mapas, coleções, records e objetos Java simples como JSON identado para diagnóstico. */
+/**
+ * Formata mapas, coleções, records e objetos Java simples como JSON identado para diagnóstico, com
+ * cores ANSI (terminal) para facilitar a leitura no console.
+ */
 public final class PrettyJson {
 
   private static final String INDENT = "  ";
+
+  private static final String RESET = "\u001B[0m";
+  private static final String KEY_COLOR = "\u001B[36m"; // ciano
+  private static final String STRING_COLOR = "\u001B[32m"; // verde
+  private static final String NUMBER_COLOR = "\u001B[33m"; // amarelo
+  private static final String BOOLEAN_COLOR = "\u001B[35m"; // magenta
+  private static final String NULL_COLOR = "\u001B[90m"; // cinza
 
   private PrettyJson() {}
 
@@ -22,11 +32,18 @@ public final class PrettyJson {
 
   private static void append(Object value, StringBuilder output, int level) {
     if (value == null) {
-      output.append("null");
+      output.append(NULL_COLOR).append("null").append(RESET);
     } else if (value instanceof String || value instanceof Character || value instanceof Enum<?>) {
-      output.append('"').append(escape(String.valueOf(value))).append('"');
-    } else if (value instanceof Number || value instanceof Boolean) {
-      output.append(value);
+      output
+          .append(STRING_COLOR)
+          .append('"')
+          .append(escape(String.valueOf(value)))
+          .append('"')
+          .append(RESET);
+    } else if (value instanceof Boolean) {
+      output.append(BOOLEAN_COLOR).append(value).append(RESET);
+    } else if (value instanceof Number) {
+      output.append(NUMBER_COLOR).append(value).append(RESET);
     } else if (value instanceof Map<?, ?> map) {
       appendMap(map, output, level);
     } else if (value instanceof Iterable<?> iterable) {
@@ -49,7 +66,7 @@ public final class PrettyJson {
       Map.Entry<?, ?> entry = entries.next();
       output.append(System.lineSeparator());
       indent(output, level + 1);
-      output.append('"').append(escape(String.valueOf(entry.getKey()))).append("\": ");
+      appendKey(String.valueOf(entry.getKey()), output);
       append(entry.getValue(), output, level + 1);
       if (entries.hasNext()) {
         output.append(',');
@@ -94,7 +111,7 @@ public final class PrettyJson {
       RecordComponent component = components[index];
       output.append(System.lineSeparator());
       indent(output, level + 1);
-      output.append('"').append(escape(component.getName())).append("\": ");
+      appendKey(component.getName(), output);
       try {
         append(component.getAccessor().invoke(record), output, level + 1);
       } catch (ReflectiveOperationException exception) {
@@ -121,7 +138,7 @@ public final class PrettyJson {
       }
       output.append(System.lineSeparator());
       indent(output, level + 1);
-      output.append('"').append(escape(field.getName())).append("\": ");
+      appendKey(field.getName(), output);
       try {
         field.setAccessible(true);
         append(field.get(object), output, level + 1);
@@ -141,6 +158,10 @@ public final class PrettyJson {
       indent(output, level);
     }
     output.append(closingCharacter);
+  }
+
+  private static void appendKey(String key, StringBuilder output) {
+    output.append(KEY_COLOR).append('"').append(escape(key)).append("\": ").append(RESET);
   }
 
   private static void indent(StringBuilder output, int level) {
