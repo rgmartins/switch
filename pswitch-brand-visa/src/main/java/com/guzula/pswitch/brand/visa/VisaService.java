@@ -18,16 +18,16 @@ import org.springframework.stereotype.Service;
 public class VisaService implements BrandHandler, InboundPayloadHandler {
 
   private static final Logger LOGGER = Logger.getLogger(VisaService.class.getName());
-  private static final String CHANNEL = "VISA";
+  private static final String VISA = "VISA";
 
   @Override
   public String brand() {
-    return CHANNEL;
+    return VISA;
   }
 
   @Override
   public String handlerName() {
-    return CHANNEL;
+    return VISA;
   }
 
   @Override
