@@ -27,6 +27,7 @@ import com.guzula.pswitch.external.hsm.HsmSeProtocol;
 import com.guzula.pswitch.external.hsm.HsmService;
 import com.guzula.pswitch.nucleo.ChannelResponder;
 import com.guzula.pswitch.nucleo.NucleoService;
+import com.guzula.pswitch.nucleo.regras.RegrasService;
 import com.guzula.pswitch.registry.bin.BinConfig;
 import com.guzula.pswitch.registry.keyblock.KeyblockConfig;
 import com.guzula.pswitch.registry.terminal.TerminalConfig;
@@ -110,8 +111,9 @@ class PosParserServiceTest {
     assertEquals(
         "1016",
         ((De47Parser.ConnectionTimes) de47.subfields().get("06").details()).connectionTime());
-    assertTrue(message.toMultilineString().contains("\"transactionCount\": 1"));
-    assertTrue(message.toMultilineString().contains("        \"documentNumber\": \"709226\""));
+    String multiline = stripAnsi(message.toMultilineString());
+    assertTrue(multiline.contains("\"transactionCount\": 1"));
+    assertTrue(multiline.contains("        \"documentNumber\": \"709226\""));
 
     var de55 = (De55Parser.Data) message.fields().get(55).value();
     var emv = (De55Parser.EmvData) de55.subfields().get("07").details();
@@ -329,6 +331,7 @@ class PosParserServiceTest {
                                     "",
                                     ""))),
                     hsmService),
+                new RegrasService(),
                 new TableResponseService(),
                 channelResponders));
     posServiceReference.set(service);
@@ -338,5 +341,9 @@ class PosParserServiceTest {
     assertArrayEquals(payload, sent.get("connection-1"));
     assertEquals("SE", new String(sent.get("HSM-SE"), 4, 2, StandardCharsets.US_ASCII));
     assertEquals("G0", new String(sent.get("HSM-G0"), 4, 2, StandardCharsets.US_ASCII));
+  }
+
+  private static String stripAnsi(String value) {
+    return value.replaceAll("\u001B\\[[0-9;]*m", "");
   }
 }

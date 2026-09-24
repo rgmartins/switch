@@ -17,4 +17,6 @@ public final class Obs {
 
   public static final Rule RULE_999_INTERNAL_PROCESSING_ERROR =
       new Rule(999, "Erro interno durante o processamento da transação", "96");
+
+  public static final Rule RULE_165_TERMINAL_BLOCKED = new Rule(165, "Terminal bloqueado", "57");
 }

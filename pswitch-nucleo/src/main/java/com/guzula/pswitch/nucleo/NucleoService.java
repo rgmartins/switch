@@ -2,6 +2,7 @@ package com.guzula.pswitch.nucleo;
 
 import com.guzula.pswitch.comum.ComumService;
 import com.guzula.pswitch.comum.tableresponse.TableResponseService;
+import com.guzula.pswitch.nucleo.regras.RegrasService;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import com.guzula.pswitch.shared.exception.RuleViolationException;
 import com.guzula.pswitch.shared.rules.Obs;
@@ -23,6 +24,7 @@ import org.springframework.stereotype.Service;
 public class NucleoService {
 
   private final ComumService comumService;
+  private final RegrasService regrasService;
   private final TableResponseService tableResponseService;
   private final ObjectProvider<List<ChannelResponder>> channelResponders;
 
@@ -34,27 +36,24 @@ public class NucleoService {
    */
   public NucleoService(
       ComumService comumService,
+      RegrasService regrasService,
       TableResponseService tableResponseService,
       ObjectProvider<List<ChannelResponder>> channelResponders) {
     this.comumService = comumService;
+    this.regrasService = regrasService;
     this.tableResponseService = tableResponseService;
     this.channelResponders = channelResponders;
   }
 
   /**
-   * Ponto de entrada único do pipeline de transação para todos os canais (POS, TEF, ...).
-   * Referência: comum.service.ts#processTransaction (guzula-switch) — fica aqui, e não em
-   * ComumService, porque pswitch-nucleo já depende de pswitch-comum (o inverso criaria um ciclo de
-   * módulo Maven).
-   *
-   * <p>Qualquer {@link RuleViolationException} lançada por um serviço do pipeline (registries, HSM,
-   * regras de negócio, ...), ou qualquer outra falha inesperada, é convertida aqui — e somente aqui
-   * — numa resposta de negação via {@link TableResponseService}, em vez de propagar e derrubar a
-   * transação.
+   * Ponto de entrada único do pipeline de transação para todos os canais (POS, TEF, ...). Converte
+   * qualquer {@link RuleViolationException} ou falha inesperada numa resposta de negação, em vez de
+   * propagar e derrubar a transação.
    */
   public CanonicalTransaction processTransaction(CanonicalTransaction canonical) {
     try {
       comumService.process(canonical);
+      regrasService.validate(canonical); // regras de negócio — terminal bloqueado é a primeira
     } catch (RuleViolationException e) {
       tableResponseService.populateResponseFromRule(canonical, e.getRule());
     } catch (Exception e) {

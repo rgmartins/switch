@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -13,6 +14,9 @@ import com.guzula.pswitch.comum.keyblock.KeyblockService;
 import com.guzula.pswitch.comum.tableresponse.TableResponseService;
 import com.guzula.pswitch.comum.terminal.TerminalService;
 import com.guzula.pswitch.external.hsm.HsmService;
+import com.guzula.pswitch.nucleo.regras.RegrasService;
+import com.guzula.pswitch.registry.keyblock.KeyblockConfig;
+import com.guzula.pswitch.registry.terminal.TerminalConfig;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +44,10 @@ class NucleoServiceTest {
     List<CanonicalTransaction> sentResponses = new ArrayList<>();
     NucleoService nucleoService =
         new NucleoService(
-            comumService, new TableResponseService(), fakeChannelResponders("POS", sentResponses));
+            comumService,
+            new RegrasService(),
+            new TableResponseService(),
+            fakeChannelResponders("POS", sentResponses));
 
     CanonicalTransaction canonical = canonicalFromChannel("POS");
 
@@ -72,7 +79,10 @@ class NucleoServiceTest {
     List<CanonicalTransaction> sentResponses = new ArrayList<>();
     NucleoService nucleoService =
         new NucleoService(
-            comumService, new TableResponseService(), fakeChannelResponders("POS", sentResponses));
+            comumService,
+            new RegrasService(),
+            new TableResponseService(),
+            fakeChannelResponders("POS", sentResponses));
 
     CanonicalTransaction canonical = canonicalFromChannel("POS");
 
@@ -84,6 +94,69 @@ class NucleoServiceTest {
     assertEquals(999, response.getObs().getCode());
     assertEquals("Falha inesperada de infraestrutura", response.getError().getMessage());
     assertNotNull(response.getError().getStack());
+    assertEquals(1, sentResponses.size());
+  }
+
+  @Test
+  void blockedTerminalBecomesDenialResponseRoutedToOriginChannel() {
+    TerminalConfig blockedTerminal =
+        new TerminalConfig(
+            "mongo-id",
+            "00891592",
+            "Estabelecimento Comercial Exemplo",
+            10169548130001L,
+            42L,
+            54321L,
+            9876L,
+            998877L,
+            665544L,
+            new TerminalConfig.Address(
+                "Avenida das Nações",
+                "450",
+                "Bloco B",
+                "Centro",
+                "Barueri",
+                "06454-000",
+                "SP",
+                "BRA"),
+            "j",
+            "10169548130001",
+            "solucao_pos",
+            true,
+            true,
+            true);
+    TerminalService terminalService =
+        new TerminalService(terminalId -> Optional.of(blockedTerminal));
+    KeyblockService keyblockService = mock(KeyblockService.class);
+    when(keyblockService.getSourceKey(any()))
+        .thenReturn(
+            new KeyblockConfig(
+                "mongo-key-id",
+                "fffff17001",
+                "2026-01-01T00:00:00Z",
+                "0123456789ABCDEFFEDCBA9876543210",
+                "",
+                ""));
+    ComumService comumService =
+        new ComumService(
+            terminalService, mock(BinService.class), keyblockService, mock(HsmService.class));
+    List<CanonicalTransaction> sentResponses = new ArrayList<>();
+    NucleoService nucleoService =
+        new NucleoService(
+            comumService,
+            new RegrasService(),
+            new TableResponseService(),
+            fakeChannelResponders("POS", sentResponses));
+
+    CanonicalTransaction canonical = canonicalFromChannel("POS");
+
+    assertDoesNotThrow(() -> nucleoService.processTransaction(canonical));
+
+    CanonicalTransaction.Response response = canonical.getResponse();
+    assertNotNull(response);
+    assertEquals("57", response.getResponseCode());
+    assertEquals(165, response.getObs().getCode());
+    assertEquals("Terminal bloqueado", response.getObs().getDescription());
     assertEquals(1, sentResponses.size());
   }
 
