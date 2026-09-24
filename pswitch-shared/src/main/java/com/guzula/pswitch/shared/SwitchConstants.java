@@ -4,7 +4,7 @@ package com.guzula.pswitch.shared;
  * Constantes compartilhadas entre módulos. Referência: src/shared/constants.ts (guzula-switch).
  *
  * <p>TODO: portar os demais grupos de constants.ts conforme forem sendo necessários (MCC,
- * CARD_PRODUCT, CURRENCY_CODE, VISA_*, WHO_RESPONDED, MESSAGE_DESCRIPTION_SOURCE...).
+ * CARD_PRODUCT, CURRENCY_CODE, VISA_*...).
  */
 public final class SwitchConstants {
 
@@ -115,5 +115,25 @@ public final class SwitchConstants {
     public static final String UNDO = "999";
 
     private TransactionType() {}
+  }
+
+  public static final class WhoResponded {
+    public static final String SYSTEM = "S0";
+    public static final String BRAND_VISA = "VI";
+    public static final String PLANET = "PP";
+    public static final String ANTIFRAUD = "LX";
+
+    private WhoResponded() {}
+  }
+
+  public static final class MessageDescriptionSource {
+    public static final String SYSTEM = "system";
+    public static final String ABECS = "abecs";
+    public static final String GENERIC = "generic";
+    public static final String BRAND = "brand";
+    public static final String CAN = "can";
+    public static final String OBS = "obs";
+
+    private MessageDescriptionSource() {}
   }
 }

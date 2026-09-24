@@ -3,9 +3,15 @@ package com.guzula.pswitch.comum.terminal;
 import com.guzula.pswitch.registry.terminal.TerminalConfig;
 import com.guzula.pswitch.registry.terminal.TerminalRegistry;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
+import com.guzula.pswitch.shared.exception.RuleViolationException;
+import com.guzula.pswitch.shared.rules.Obs;
 import org.springframework.stereotype.Service;
 
-/** Popula o canônico com os dados do terminal cadastrado. */
+/**
+ * Popula o canônico com os dados do terminal cadastrado. Não trata o caso de terminal não
+ * encontrado/incompleto — apenas lança {@link RuleViolationException}; quem converte isso numa
+ * resposta de negação é o orquestrador central (NucleoService.processTransaction).
+ */
 @Service
 public class TerminalService {
 
@@ -19,15 +25,11 @@ public class TerminalService {
     TerminalConfig terminal =
         terminalRegistry
             .findByTerminalId(canonical.getTerminalId())
-            .orElseThrow(
-                () ->
-                    new IllegalStateException(
-                        "Terminal não cadastrado: " + canonical.getTerminalId()));
+            .orElseThrow(() -> new RuleViolationException(Obs.RULE_999_UNREGISTERED_TERMINAL));
 
     TerminalConfig.Address source = terminal.address();
     if (source == null) {
-      throw new IllegalStateException(
-          "Terminal sem endereço cadastrado: " + canonical.getTerminalId());
+      throw new RuleViolationException(Obs.RULE_999_UNREGISTERED_TERMINAL);
     }
 
     CanonicalTransaction.Merchant merchant = canonical.getMerchant();

@@ -2,11 +2,13 @@ package com.guzula.pswitch.capture.pos;
 
 import com.guzula.pswitch.capture.pos.parser.PosMessage;
 import com.guzula.pswitch.capture.pos.parser.PosParserService;
-import com.guzula.pswitch.comum.ComumService;
 import com.guzula.pswitch.nucleo.ChannelResponder;
+import com.guzula.pswitch.nucleo.NucleoService;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import com.guzula.pswitch.shared.port.InboundPayloadHandler;
 import com.guzula.pswitch.shared.port.OutboundPayloadSender;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Service;
 
 /**
@@ -14,7 +16,9 @@ import org.springframework.stereotype.Service;
  * aciona ComumService -> NucleoService, e via {@link #sendResponse} devolve a resposta ao terminal
  * (PosPackerService).
  *
- * <p>TODO: portar o fluxo completo (ver diagrama em guzula-switch/CLAUDE.md).
+ * <p>TODO: portar o fluxo completo (ver diagrama em guzula-switch/CLAUDE.md). Por enquanto {@link
+ * #sendResponse} apenas ecoa de volta o payload bruto recebido, até {@link PosPackerService}
+ * empacotar a resposta real a partir de {@code canonical.response}.
  */
 @Service
 public class PosService implements ChannelResponder, InboundPayloadHandler {
@@ -24,17 +28,18 @@ public class PosService implements ChannelResponder, InboundPayloadHandler {
   private final OutboundPayloadSender payloadSender;
   private final PosParserService parser;
   private final PosMapperService mapper;
-  private final ComumService comumService;
+  private final NucleoService nucleoService;
+  private final Map<String, byte[]> pendingRequestByConnection = new ConcurrentHashMap<>();
 
   public PosService(
       OutboundPayloadSender payloadSender,
       PosParserService parser,
       PosMapperService mapper,
-      ComumService comumService) {
+      NucleoService nucleoService) {
     this.payloadSender = payloadSender;
     this.parser = parser;
     this.mapper = mapper;
-    this.comumService = comumService;
+    this.nucleoService = nucleoService;
   }
 
   @Override
@@ -49,7 +54,12 @@ public class PosService implements ChannelResponder, InboundPayloadHandler {
 
   @Override
   public void sendResponse(CanonicalTransaction transaction) {
-    throw new UnsupportedOperationException("TODO: portar pos.service.ts");
+    String connectionId = transaction.getCommunication().getSocketId();
+    byte[] payload = pendingRequestByConnection.remove(connectionId);
+    logCanonical(transaction);
+    // TODO: portar pos.service.ts#sendResponseToPOS — empacotar transaction.response via
+    // PosPackerService em vez de ecoar o payload bruto recebido.
+    payloadSender.send(connectionId, payload);
   }
 
   @Override
@@ -58,17 +68,22 @@ public class PosService implements ChannelResponder, InboundPayloadHandler {
     System.out.print(message.toMultilineString());
 
     CanonicalTransaction canonical = mapper.toCanonical(message, connectionId);
-    comumService.process(canonical);
+    pendingRequestByConnection.put(connectionId, payload);
+    // processTransaction chama handleResponse -> sendResponse (deste próprio PosService) no final
+    // — não devolvemos a resposta aqui, para manter o roteamento por canal centralizado no
+    // NucleoService.
+    nucleoService.processTransaction(canonical);
+  }
+
+  private void logCanonical(CanonicalTransaction transaction) {
     System.out.println("****************************************");
     System.out.println("* Canônico com dados do terminal new   *");
     System.out.println("****************************************");
-    System.out.println(canonical);
+    System.out.println(transaction);
     System.out.printf(
         "Canonical  terminalId=%s valorCentavos=%d moeda=%s%n",
-        canonical.getTerminalId(),
-        canonical.getOperation().getAmount(),
-        canonical.getOperation().getCurrencyCode());
-
-    payloadSender.send(connectionId, payload);
+        transaction.getTerminalId(),
+        transaction.getOperation().getAmount(),
+        transaction.getOperation().getCurrencyCode());
   }
 }

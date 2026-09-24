@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.guzula.pswitch.capture.pos.PosMapperService;
 import com.guzula.pswitch.capture.pos.PosService;
@@ -17,11 +19,14 @@ import com.guzula.pswitch.capture.pos.parser.de62.De62Parser;
 import com.guzula.pswitch.comum.ComumService;
 import com.guzula.pswitch.comum.bin.BinService;
 import com.guzula.pswitch.comum.keyblock.KeyblockService;
+import com.guzula.pswitch.comum.tableresponse.TableResponseService;
 import com.guzula.pswitch.comum.terminal.TerminalService;
 import com.guzula.pswitch.external.hsm.HsmG0Protocol;
 import com.guzula.pswitch.external.hsm.HsmRequestManager;
 import com.guzula.pswitch.external.hsm.HsmSeProtocol;
 import com.guzula.pswitch.external.hsm.HsmService;
+import com.guzula.pswitch.nucleo.ChannelResponder;
+import com.guzula.pswitch.nucleo.NucleoService;
 import com.guzula.pswitch.registry.bin.BinConfig;
 import com.guzula.pswitch.registry.keyblock.KeyblockConfig;
 import com.guzula.pswitch.registry.terminal.TerminalConfig;
@@ -32,11 +37,13 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 class PosParserServiceTest {
 
@@ -260,59 +267,71 @@ class PosParserServiceTest {
             new HsmSeProtocol(),
             new HsmG0Protocol());
     hsmReference.set(hsmService);
+    // NucleoService precisa da lista de ChannelResponder (que inclui este próprio PosService,
+    // ainda não construído) só dentro de handleResponse — por isso a resolução preguiçosa via
+    // ObjectProvider + referência mutável, do mesmo jeito que o Spring resolve em produção.
+    AtomicReference<PosService> posServiceReference = new AtomicReference<>();
+    @SuppressWarnings("unchecked")
+    ObjectProvider<List<ChannelResponder>> channelResponders = mock(ObjectProvider.class);
+    when(channelResponders.getObject())
+        .thenAnswer(invocation -> List.of((ChannelResponder) posServiceReference.get()));
     PosService service =
         new PosService(
             payloadSender,
             parser,
             new PosMapperService(),
-            new ComumService(
-                new TerminalService(
-                    terminalId ->
-                        Optional.of(
-                            new TerminalConfig(
-                                "mongo-id",
-                                terminalId,
-                                new TerminalConfig.Address(
-                                    "Rua Teste",
-                                    "1",
-                                    null,
-                                    "Centro",
-                                    "Sao Paulo",
-                                    "01001000",
-                                    "SP",
-                                    "BR")))),
-                new BinService(
-                    pan ->
-                        Optional.of(
-                            new BinConfig(
-                                "4158960000000000000",
-                                "4158960000000000000",
-                                "4158969999999999999",
-                                "Cartão de Teste Visa",
-                                999,
-                                "BR",
-                                1,
-                                1,
-                                1,
-                                false,
-                                true,
-                                false,
-                                false,
-                                false,
-                                "C"))),
-                new KeyblockService(
-                    keyblockId ->
-                        Optional.of(
-                            new KeyblockConfig(
-                                "mongo-key-id",
-                                keyblockId,
-                                "2026-01-01T00:00:00Z",
-                                "brand-1".equals(keyblockId)
-                                    ? "FEDCBA98765432100123456789ABCDEF"
-                                    : "0123456789ABCDEFFEDCBA9876543210",
-                                "",
-                                ""))),
-                hsmService));
+            new NucleoService(
+                new ComumService(
+                    new TerminalService(
+                        terminalId ->
+                            Optional.of(
+                                new TerminalConfig(
+                                    "mongo-id",
+                                    terminalId,
+                                    new TerminalConfig.Address(
+                                        "Rua Teste",
+                                        "1",
+                                        null,
+                                        "Centro",
+                                        "Sao Paulo",
+                                        "01001000",
+                                        "SP",
+                                        "BR")))),
+                    new BinService(
+                        pan ->
+                            Optional.of(
+                                new BinConfig(
+                                    "4158960000000000000",
+                                    "4158960000000000000",
+                                    "4158969999999999999",
+                                    "Cartão de Teste Visa",
+                                    999,
+                                    "BR",
+                                    1,
+                                    1,
+                                    1,
+                                    false,
+                                    true,
+                                    false,
+                                    false,
+                                    false,
+                                    "C"))),
+                    new KeyblockService(
+                        keyblockId ->
+                            Optional.of(
+                                new KeyblockConfig(
+                                    "mongo-key-id",
+                                    keyblockId,
+                                    "2026-01-01T00:00:00Z",
+                                    "brand-1".equals(keyblockId)
+                                        ? "FEDCBA98765432100123456789ABCDEF"
+                                        : "0123456789ABCDEFFEDCBA9876543210",
+                                    "",
+                                    ""))),
+                    hsmService),
+                new TableResponseService(),
+                channelResponders));
+    posServiceReference.set(service);
 
     service.handleInbound("connection-1", payload);
 
