@@ -26,6 +26,7 @@ import com.guzula.pswitch.external.hsm.HsmG0Protocol;
 import com.guzula.pswitch.external.hsm.HsmRequestManager;
 import com.guzula.pswitch.external.hsm.HsmSeProtocol;
 import com.guzula.pswitch.external.hsm.HsmService;
+import com.guzula.pswitch.nucleo.BrandHandler;
 import com.guzula.pswitch.nucleo.ChannelResponder;
 import com.guzula.pswitch.nucleo.NucleoService;
 import com.guzula.pswitch.nucleo.regras.RegrasService;
@@ -336,7 +337,7 @@ class PosParserServiceTest {
                     productUniqueService()),
                 new RegrasService(),
                 new TableResponseService(),
-                List.of(),
+                emptyBrandHandlers(),
                 channelResponders));
     posServiceReference.set(service);
 
@@ -345,6 +346,13 @@ class PosParserServiceTest {
     assertArrayEquals(payload, sent.get("connection-1"));
     assertEquals("SE", new String(sent.get("HSM-SE"), 4, 2, StandardCharsets.US_ASCII));
     assertEquals("G0", new String(sent.get("HSM-G0"), 4, 2, StandardCharsets.US_ASCII));
+  }
+
+  @SuppressWarnings("unchecked")
+  private static ObjectProvider<List<BrandHandler>> emptyBrandHandlers() {
+    ObjectProvider<List<BrandHandler>> provider = mock(ObjectProvider.class);
+    when(provider.getObject()).thenReturn(List.of());
+    return provider;
   }
 
   /**

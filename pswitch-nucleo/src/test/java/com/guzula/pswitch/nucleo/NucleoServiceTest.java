@@ -51,7 +51,7 @@ class NucleoServiceTest {
             comumService,
             new RegrasService(),
             new TableResponseService(),
-            List.of(),
+            fakeBrandHandlers(List.of()),
             fakeChannelResponders("POS", sentResponses));
 
     CanonicalTransaction canonical = canonicalFromChannel("POS");
@@ -88,7 +88,7 @@ class NucleoServiceTest {
             comumService,
             new RegrasService(),
             new TableResponseService(),
-            List.of(),
+            fakeBrandHandlers(List.of()),
             fakeChannelResponders("POS", sentResponses));
 
     CanonicalTransaction canonical = canonicalFromChannel("POS");
@@ -157,7 +157,7 @@ class NucleoServiceTest {
             comumService,
             new RegrasService(),
             new TableResponseService(),
-            List.of(),
+            fakeBrandHandlers(List.of()),
             fakeChannelResponders("POS", sentResponses));
 
     CanonicalTransaction canonical = canonicalFromChannel("POS");
@@ -193,7 +193,7 @@ class NucleoServiceTest {
             approvedComumService(),
             new RegrasService(),
             new TableResponseService(),
-            List.of(visaHandler),
+            fakeBrandHandlers(List.of(visaHandler)),
             fakeChannelResponders("POS", sentResponses));
 
     CanonicalTransaction canonical = canonicalWithVisaCard("POS");
@@ -215,7 +215,7 @@ class NucleoServiceTest {
             approvedComumService(),
             new RegrasService(),
             new TableResponseService(),
-            List.of(), // nenhum BrandHandler registrado
+            fakeBrandHandlers(List.of()), // nenhum BrandHandler registrado
             fakeChannelResponders("POS", sentResponses));
 
     CanonicalTransaction canonical = canonicalWithVisaCard("POS");
@@ -325,6 +325,13 @@ class NucleoServiceTest {
     operation.setProduct(new CanonicalTransaction.Operation.Product());
     canonical.setOperation(operation);
     return canonical;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static ObjectProvider<List<BrandHandler>> fakeBrandHandlers(List<BrandHandler> handlers) {
+    ObjectProvider<List<BrandHandler>> provider = mock(ObjectProvider.class);
+    when(provider.getObject()).thenReturn(handlers);
+    return provider;
   }
 
   @SuppressWarnings("unchecked")

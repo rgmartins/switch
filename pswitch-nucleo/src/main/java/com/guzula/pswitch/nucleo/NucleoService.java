@@ -25,21 +25,21 @@ public class NucleoService {
   private final ComumService comumService;
   private final RegrasService regrasService;
   private final TableResponseService tableResponseService;
-  private final List<BrandHandler> brandHandlers;
+  private final ObjectProvider<List<BrandHandler>> brandHandlers;
   private final ObjectProvider<List<ChannelResponder>> channelResponders;
 
   /**
-   * {@code channelResponders} é resolvido de forma preguiçosa (via {@link ObjectProvider}, só
-   * dentro de {@link #handleResponse}) porque cada módulo de canal (ex.: PosService) também injeta
-   * {@link NucleoService} — resolver a lista aqui no construtor criaria um ciclo de bean do Spring
-   * entre NucleoService e cada ChannelResponder. {@code brandHandlers} não tem esse problema
-   * (nenhum BrandHandler injeta NucleoService), então é resolvido direto no construtor.
+   * {@code brandHandlers} e {@code channelResponders} são resolvidos de forma preguiçosa (via
+   * {@link ObjectProvider}, só dentro de {@link #route}/{@link #handleResponse}) porque tanto os
+   * módulos de canal (ex.: PosService) quanto os de bandeira (ex.: VisaService, pra devolver a
+   * resposta assíncrona) também injetam {@link NucleoService} — resolver as listas aqui no
+   * construtor criaria um ciclo de bean do Spring.
    */
   public NucleoService(
       ComumService comumService,
       RegrasService regrasService,
       TableResponseService tableResponseService,
-      List<BrandHandler> brandHandlers,
+      ObjectProvider<List<BrandHandler>> brandHandlers,
       ObjectProvider<List<ChannelResponder>> channelResponders) {
     this.comumService = comumService;
     this.regrasService = regrasService;
@@ -95,7 +95,7 @@ public class NucleoService {
   public void route(CanonicalTransaction transaction) {
     String brand = transaction.getCard().getCardBrand().getAuthorization();
     BrandHandler handler =
-        brandHandlers.stream()
+        brandHandlers.getObject().stream()
             .filter(candidate -> candidate.brand().equals(brand))
             .findFirst()
             .orElseThrow(() -> new RuleViolationException(Obs.RULE_999_UNPROCESSED_BRAND));
