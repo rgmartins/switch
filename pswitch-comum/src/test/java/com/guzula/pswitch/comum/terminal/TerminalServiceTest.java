@@ -8,6 +8,7 @@ import com.guzula.pswitch.comum.ComumService;
 import com.guzula.pswitch.comum.bin.BinService;
 import com.guzula.pswitch.comum.keyblock.KeyblockService;
 import com.guzula.pswitch.external.hsm.HsmService;
+import com.guzula.pswitch.registry.bin.BinConfig;
 import com.guzula.pswitch.registry.keyblock.KeyblockConfig;
 import com.guzula.pswitch.registry.terminal.TerminalConfig;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
@@ -54,11 +55,31 @@ class TerminalServiceTest {
                         "",
                         "")));
     HsmService hsmService = mock(HsmService.class);
+    BinConfig bin =
+        new BinConfig(
+            "mongo-bin-id",
+            "4000000000000000",
+            "4999999999999999",
+            "Visa",
+            1,
+            "BR",
+            1,
+            1,
+            1,
+            false,
+            true,
+            false,
+            false,
+            false,
+            "credit");
     ComumService comumService =
         new ComumService(
-            terminalService, new BinService(pan -> Optional.empty()), keyblockService, hsmService);
+            terminalService, new BinService(pan -> Optional.of(bin)), keyblockService, hsmService);
     CanonicalTransaction canonical = new CanonicalTransaction();
     canonical.setTerminalId("01361475");
+    CanonicalTransaction.Card card = new CanonicalTransaction.Card();
+    card.setCardNumber("4000000000000002");
+    canonical.setCard(card);
     CanonicalTransaction.Security.Ksn ksn = new CanonicalTransaction.Security.Ksn();
     ksn.setBdkIndicator("fffff17001");
     CanonicalTransaction.Security security = new CanonicalTransaction.Security();

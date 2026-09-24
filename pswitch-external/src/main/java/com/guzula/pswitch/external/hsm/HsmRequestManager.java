@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 
 /** Envia requisições ao HSM e correlaciona cada resposta pelo header. */
 @Component
-public class HsmRequestManager {
+public final class HsmRequestManager {
 
   private static final Logger LOGGER = Logger.getLogger(HsmRequestManager.class.getName());
   private static final int HEADER_LENGTH = 4;

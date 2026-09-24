@@ -36,19 +36,19 @@ public class ComumService {
     terminalService.populate(canonical);
     KeyblockConfig sourceKey = keyblockService.getSourceKey(canonical);
     hsmService.decryptCardData(canonical, sourceKey.keyblock1());
-    translatePinBlockWhenPresent(canonical, sourceKey);
+    BinConfig bin = binService.getByCard(canonical);
+    translatePinBlockWhenPresent(canonical, sourceKey, bin);
     return canonical;
   }
 
   private void translatePinBlockWhenPresent(
-      CanonicalTransaction canonical, KeyblockConfig sourceKey) {
+      CanonicalTransaction canonical, KeyblockConfig sourceKey, BinConfig bin) {
     if (canonical.getSecurity() == null
         || canonical.getSecurity().getPinBlock() == null
         || canonical.getSecurity().getPinBlock().isBlank()) {
       return;
     }
 
-    BinConfig bin = binService.getByCard(canonical);
     KeyblockConfig destinationKey = keyblockService.getKey("brand-" + bin.cardBrandAuthorization());
     hsmService.translatePinBlock(canonical, sourceKey.keyblock1(), destinationKey.keyblock1());
   }
