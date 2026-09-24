@@ -19,6 +19,7 @@ import com.guzula.pswitch.capture.pos.parser.de62.De62Parser;
 import com.guzula.pswitch.comum.ComumService;
 import com.guzula.pswitch.comum.bin.BinService;
 import com.guzula.pswitch.comum.keyblock.KeyblockService;
+import com.guzula.pswitch.comum.tableproductunique.TableProductUniqueService;
 import com.guzula.pswitch.comum.tableresponse.TableResponseService;
 import com.guzula.pswitch.comum.terminal.TerminalService;
 import com.guzula.pswitch.external.hsm.HsmG0Protocol;
@@ -30,6 +31,7 @@ import com.guzula.pswitch.nucleo.NucleoService;
 import com.guzula.pswitch.nucleo.regras.RegrasService;
 import com.guzula.pswitch.registry.bin.BinConfig;
 import com.guzula.pswitch.registry.keyblock.KeyblockConfig;
+import com.guzula.pswitch.registry.tableproductunique.TableProductUniqueConfig;
 import com.guzula.pswitch.registry.terminal.TerminalConfig;
 import com.guzula.pswitch.shared.port.OutboundPayloadSender;
 import java.math.BigDecimal;
@@ -330,7 +332,8 @@ class PosParserServiceTest {
                                         : "0123456789ABCDEFFEDCBA9876543210",
                                     "",
                                     ""))),
-                    hsmService),
+                    hsmService,
+                    productUniqueService()),
                 new RegrasService(),
                 new TableResponseService(),
                 channelResponders));
@@ -341,6 +344,25 @@ class PosParserServiceTest {
     assertArrayEquals(payload, sent.get("connection-1"));
     assertEquals("SE", new String(sent.get("HSM-SE"), 4, 2, StandardCharsets.US_ASCII));
     assertEquals("G0", new String(sent.get("HSM-G0"), 4, 2, StandardCharsets.US_ASCII));
+  }
+
+  /**
+   * DE61 subcampos 14/28 da mensagem de teste codificam o produto único "1000-2" — mesma chave do
+   * seed real de TableProductUnique ("Crédito Parcelado Loja").
+   */
+  private static TableProductUniqueService productUniqueService() {
+    TableProductUniqueConfig config =
+        new TableProductUniqueConfig(
+            "1000-2",
+            "1000-2",
+            "Crédito Parcelado Loja",
+            1000,
+            2,
+            List.of(
+                new TableProductUniqueConfig.Brand(
+                    1, new TableProductUniqueConfig.Product(100, 12, 912))));
+    return new TableProductUniqueService(
+        key -> "1000-2".equals(key) ? Optional.of(config) : Optional.empty());
   }
 
   private static String stripAnsi(String value) {

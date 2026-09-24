@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.guzula.pswitch.comum.ComumService;
 import com.guzula.pswitch.comum.bin.BinService;
 import com.guzula.pswitch.comum.keyblock.KeyblockService;
+import com.guzula.pswitch.comum.tableproductunique.TableProductUniqueService;
 import com.guzula.pswitch.comum.tableresponse.TableResponseService;
 import com.guzula.pswitch.comum.terminal.TerminalService;
 import com.guzula.pswitch.external.hsm.HsmService;
@@ -40,7 +41,8 @@ class NucleoServiceTest {
             terminalService,
             mock(BinService.class),
             mock(KeyblockService.class),
-            mock(HsmService.class));
+            mock(HsmService.class),
+            new TableProductUniqueService(key -> Optional.empty()));
     List<CanonicalTransaction> sentResponses = new ArrayList<>();
     NucleoService nucleoService =
         new NucleoService(
@@ -75,7 +77,8 @@ class NucleoServiceTest {
             terminalService,
             mock(BinService.class),
             mock(KeyblockService.class),
-            mock(HsmService.class));
+            mock(HsmService.class),
+            new TableProductUniqueService(key -> Optional.empty()));
     List<CanonicalTransaction> sentResponses = new ArrayList<>();
     NucleoService nucleoService =
         new NucleoService(
@@ -139,7 +142,11 @@ class NucleoServiceTest {
                 ""));
     ComumService comumService =
         new ComumService(
-            terminalService, mock(BinService.class), keyblockService, mock(HsmService.class));
+            terminalService,
+            mock(BinService.class),
+            keyblockService,
+            mock(HsmService.class),
+            new TableProductUniqueService(key -> Optional.empty()));
     List<CanonicalTransaction> sentResponses = new ArrayList<>();
     NucleoService nucleoService =
         new NucleoService(
@@ -167,6 +174,9 @@ class NucleoServiceTest {
     communication.setChannel(channel);
     communication.setSocketId("connection-1");
     canonical.setCommunication(communication);
+    CanonicalTransaction.Operation operation = new CanonicalTransaction.Operation();
+    operation.setProduct(new CanonicalTransaction.Operation.Product());
+    canonical.setOperation(operation);
     return canonical;
   }
 

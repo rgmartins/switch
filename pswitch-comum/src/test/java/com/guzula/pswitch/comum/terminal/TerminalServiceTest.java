@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import com.guzula.pswitch.comum.ComumService;
 import com.guzula.pswitch.comum.bin.BinService;
 import com.guzula.pswitch.comum.keyblock.KeyblockService;
+import com.guzula.pswitch.comum.tableproductunique.TableProductUniqueService;
 import com.guzula.pswitch.external.hsm.HsmService;
 import com.guzula.pswitch.registry.bin.BinConfig;
 import com.guzula.pswitch.registry.keyblock.KeyblockConfig;
@@ -74,12 +75,19 @@ class TerminalServiceTest {
             "credit");
     ComumService comumService =
         new ComumService(
-            terminalService, new BinService(pan -> Optional.of(bin)), keyblockService, hsmService);
+            terminalService,
+            new BinService(pan -> Optional.of(bin)),
+            keyblockService,
+            hsmService,
+            new TableProductUniqueService(key -> Optional.empty()));
     CanonicalTransaction canonical = new CanonicalTransaction();
     canonical.setTerminalId("01361475");
     CanonicalTransaction.Card card = new CanonicalTransaction.Card();
     card.setCardNumber("4000000000000002");
     canonical.setCard(card);
+    CanonicalTransaction.Operation operation = new CanonicalTransaction.Operation();
+    operation.setProduct(new CanonicalTransaction.Operation.Product());
+    canonical.setOperation(operation);
     CanonicalTransaction.Security.Ksn ksn = new CanonicalTransaction.Security.Ksn();
     ksn.setBdkIndicator("fffff17001");
     CanonicalTransaction.Security security = new CanonicalTransaction.Security();

@@ -2,6 +2,7 @@ package com.guzula.pswitch.comum;
 
 import com.guzula.pswitch.comum.bin.BinService;
 import com.guzula.pswitch.comum.keyblock.KeyblockService;
+import com.guzula.pswitch.comum.tableproductunique.TableProductUniqueService;
 import com.guzula.pswitch.comum.terminal.TerminalService;
 import com.guzula.pswitch.external.hsm.HsmService;
 import com.guzula.pswitch.registry.bin.BinConfig;
@@ -20,16 +21,19 @@ public class ComumService {
   private final BinService binService;
   private final KeyblockService keyblockService;
   private final HsmService hsmService;
+  private final TableProductUniqueService tableProductUniqueService;
 
   public ComumService(
       TerminalService terminalService,
       BinService binService,
       KeyblockService keyblockService,
-      HsmService hsmService) {
+      HsmService hsmService,
+      TableProductUniqueService tableProductUniqueService) {
     this.terminalService = terminalService;
     this.binService = binService;
     this.keyblockService = keyblockService;
     this.hsmService = hsmService;
+    this.tableProductUniqueService = tableProductUniqueService;
   }
 
   public CanonicalTransaction process(CanonicalTransaction canonical) {
@@ -37,6 +41,7 @@ public class ComumService {
     KeyblockConfig sourceKey = keyblockService.getSourceKey(canonical);
     hsmService.decryptCardData(canonical, sourceKey.keyblock1());
     BinConfig bin = binService.getByCard(canonical);
+    tableProductUniqueService.populate(canonical);
     translatePinBlockWhenPresent(canonical, sourceKey, bin);
     return canonical;
   }

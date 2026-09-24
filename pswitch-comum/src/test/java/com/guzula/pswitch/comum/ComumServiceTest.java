@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.guzula.pswitch.comum.bin.BinService;
 import com.guzula.pswitch.comum.keyblock.KeyblockService;
+import com.guzula.pswitch.comum.tableproductunique.TableProductUniqueService;
 import com.guzula.pswitch.comum.terminal.TerminalService;
 import com.guzula.pswitch.external.hsm.HsmService;
 import com.guzula.pswitch.registry.bin.BinConfig;
@@ -50,11 +51,19 @@ class ComumServiceTest {
     CanonicalTransaction.Card card = new CanonicalTransaction.Card();
     card.setCardNumber("4000000000000002");
     canonical.setCard(card);
+    CanonicalTransaction.Operation operation = new CanonicalTransaction.Operation();
+    operation.setProduct(new CanonicalTransaction.Operation.Product());
+    canonical.setOperation(operation);
 
     when(keyblockService.getSourceKey(canonical)).thenReturn(sourceKey);
 
     ComumService service =
-        new ComumService(terminalService, binService, keyblockService, hsmService);
+        new ComumService(
+            terminalService,
+            binService,
+            keyblockService,
+            hsmService,
+            new TableProductUniqueService(key -> Optional.empty()));
 
     assertSame(canonical, service.process(canonical));
 

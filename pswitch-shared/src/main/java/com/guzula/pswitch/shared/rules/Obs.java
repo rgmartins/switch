@@ -19,4 +19,9 @@ public final class Obs {
       new Rule(999, "Erro interno durante o processamento da transação", "96");
 
   public static final Rule RULE_165_TERMINAL_BLOCKED = new Rule(165, "Terminal bloqueado", "57");
+
+  /** Descrição base — quem lança monta a versão com bandeira/produto/subproduto interpolados. */
+  public static final Rule RULE_999_FAILED_TO_CONVERT_THE_UNIQUE_PRODUCT =
+      new Rule(
+          999, "Não foi possível definir o produto da bandeira a partir do produto único", "02");
 }
