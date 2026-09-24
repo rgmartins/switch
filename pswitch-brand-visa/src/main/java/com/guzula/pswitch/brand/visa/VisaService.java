@@ -1,8 +1,11 @@
 package com.guzula.pswitch.brand.visa;
 
+import com.guzula.pswitch.brand.visa.packer.VisaPackerService;
 import com.guzula.pswitch.nucleo.BrandHandler;
+import com.guzula.pswitch.shared.SwitchConstants;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import com.guzula.pswitch.shared.port.InboundPayloadHandler;
+import com.guzula.pswitch.shared.port.OutboundPayloadSender;
 import java.util.logging.Logger;
 import org.springframework.stereotype.Service;
 
@@ -10,24 +13,31 @@ import org.springframework.stereotype.Service;
  * Referência: visa.service.ts (guzula-switch). Correlaciona request/response outbound por RRN (via
  * Redis, no original).
  *
- * <p>TODO: portar envio outbound (pswitch-transport), VisaParserService/VisaPackerService e
- * correlação de resposta. {@link #handleInbound} hoje só loga — serve pra validar a conexão TCP
- * outbound com o simulador antes do protocolo estar pronto.
+ * <p>TODO: portar correlação de resposta (Redis) e timeout. {@link #handleInbound} hoje só loga o
+ * que volta do simulador — falta ligar de volta em NucleoService.handleResponse.
  */
 @Service
 public class VisaService implements BrandHandler, InboundPayloadHandler {
 
   private static final Logger LOGGER = Logger.getLogger(VisaService.class.getName());
-  private static final String VISA = "VISA";
+  private static final String HANDLER_NAME = "VISA";
+
+  private final VisaPackerService packerService;
+  private final OutboundPayloadSender payloadSender;
+
+  public VisaService(VisaPackerService packerService, OutboundPayloadSender payloadSender) {
+    this.packerService = packerService;
+    this.payloadSender = payloadSender;
+  }
 
   @Override
   public String brand() {
-    return VISA;
+    return String.valueOf(SwitchConstants.Brand.VISA);
   }
 
   @Override
   public String handlerName() {
-    return VISA;
+    return HANDLER_NAME;
   }
 
   @Override
@@ -40,7 +50,12 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
 
   @Override
   public void authorize(CanonicalTransaction transaction) {
-    throw new UnsupportedOperationException("TODO: portar visa.service.ts");
+    byte[] request = packerService.pack(transaction);
+    payloadSender.send(HANDLER_NAME, request);
+    LOGGER.info(
+        () ->
+            "[VisaService] Mensagem enviada ao simulador Visa (%d bytes): %s"
+                .formatted(request.length, bytesToHex(request)));
   }
 
   private static String bytesToHex(byte[] payload) {

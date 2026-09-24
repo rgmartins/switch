@@ -20,6 +20,9 @@ public final class Obs {
 
   public static final Rule RULE_165_TERMINAL_BLOCKED = new Rule(165, "Terminal bloqueado", "57");
 
+  public static final Rule RULE_999_UNPROCESSED_BRAND =
+      new Rule(999, "Bandeira não processada pelo sistema", "02");
+
   /** Descrição base — quem lança monta a versão com bandeira/produto/subproduto interpolados. */
   public static final Rule RULE_999_FAILED_TO_CONVERT_THE_UNIQUE_PRODUCT =
       new Rule(

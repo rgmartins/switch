@@ -3,6 +3,7 @@ package com.guzula.pswitch.nucleo;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -16,6 +17,7 @@ import com.guzula.pswitch.comum.tableresponse.TableResponseService;
 import com.guzula.pswitch.comum.terminal.TerminalService;
 import com.guzula.pswitch.external.hsm.HsmService;
 import com.guzula.pswitch.nucleo.regras.RegrasService;
+import com.guzula.pswitch.registry.bin.BinConfig;
 import com.guzula.pswitch.registry.keyblock.KeyblockConfig;
 import com.guzula.pswitch.registry.terminal.TerminalConfig;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
@@ -49,6 +51,7 @@ class NucleoServiceTest {
             comumService,
             new RegrasService(),
             new TableResponseService(),
+            List.of(),
             fakeChannelResponders("POS", sentResponses));
 
     CanonicalTransaction canonical = canonicalFromChannel("POS");
@@ -85,6 +88,7 @@ class NucleoServiceTest {
             comumService,
             new RegrasService(),
             new TableResponseService(),
+            List.of(),
             fakeChannelResponders("POS", sentResponses));
 
     CanonicalTransaction canonical = canonicalFromChannel("POS");
@@ -153,6 +157,7 @@ class NucleoServiceTest {
             comumService,
             new RegrasService(),
             new TableResponseService(),
+            List.of(),
             fakeChannelResponders("POS", sentResponses));
 
     CanonicalTransaction canonical = canonicalFromChannel("POS");
@@ -165,6 +170,148 @@ class NucleoServiceTest {
     assertEquals(165, response.getObs().getCode());
     assertEquals("Terminal bloqueado", response.getObs().getDescription());
     assertEquals(1, sentResponses.size());
+  }
+
+  @Test
+  void routesToMatchingBrandHandlerAfterRulesPass() {
+    List<CanonicalTransaction> authorized = new ArrayList<>();
+    BrandHandler visaHandler =
+        new BrandHandler() {
+          @Override
+          public String brand() {
+            return "1";
+          }
+
+          @Override
+          public void authorize(CanonicalTransaction transaction) {
+            authorized.add(transaction);
+          }
+        };
+    List<CanonicalTransaction> sentResponses = new ArrayList<>();
+    NucleoService nucleoService =
+        new NucleoService(
+            approvedComumService(),
+            new RegrasService(),
+            new TableResponseService(),
+            List.of(visaHandler),
+            fakeChannelResponders("POS", sentResponses));
+
+    CanonicalTransaction canonical = canonicalWithVisaCard("POS");
+
+    assertDoesNotThrow(() -> nucleoService.processTransaction(canonical));
+
+    assertEquals(1, authorized.size());
+    assertSame(canonical, authorized.get(0));
+    assertNull(canonical.getResponse());
+    // Sucesso não responde na hora — a resposta da bandeira chega depois, assincronamente.
+    assertEquals(0, sentResponses.size());
+  }
+
+  @Test
+  void unprocessedBrandBecomesDenialResponseRoutedToOriginChannel() {
+    List<CanonicalTransaction> sentResponses = new ArrayList<>();
+    NucleoService nucleoService =
+        new NucleoService(
+            approvedComumService(),
+            new RegrasService(),
+            new TableResponseService(),
+            List.of(), // nenhum BrandHandler registrado
+            fakeChannelResponders("POS", sentResponses));
+
+    CanonicalTransaction canonical = canonicalWithVisaCard("POS");
+
+    assertDoesNotThrow(() -> nucleoService.processTransaction(canonical));
+
+    CanonicalTransaction.Response response = canonical.getResponse();
+    assertNotNull(response);
+    assertEquals("02", response.getResponseCode());
+    assertEquals(999, response.getObs().getCode());
+    assertEquals("Bandeira não processada pelo sistema", response.getObs().getDescription());
+    assertEquals(1, sentResponses.size());
+  }
+
+  /**
+   * Terminal cadastrado e não bloqueado + BIN Visa cadastrado — chega até o roteamento por
+   * bandeira.
+   */
+  private static ComumService approvedComumService() {
+    TerminalConfig terminal =
+        new TerminalConfig(
+            "mongo-id",
+            "00891592",
+            "Estabelecimento Comercial Exemplo",
+            10169548130001L,
+            42L,
+            54321L,
+            9876L,
+            998877L,
+            665544L,
+            new TerminalConfig.Address(
+                "Avenida das Nações",
+                "450",
+                "Bloco B",
+                "Centro",
+                "Barueri",
+                "06454-000",
+                "SP",
+                "BRA"),
+            "j",
+            "10169548130001",
+            "solucao_pos",
+            true,
+            true,
+            false);
+    TerminalService terminalService = new TerminalService(terminalId -> Optional.of(terminal));
+
+    KeyblockService keyblockService = mock(KeyblockService.class);
+    when(keyblockService.getSourceKey(any()))
+        .thenReturn(
+            new KeyblockConfig(
+                "mongo-key-id",
+                "fffff17001",
+                "2026-01-01T00:00:00Z",
+                "0123456789ABCDEFFEDCBA9876543210",
+                "",
+                ""));
+
+    BinConfig bin =
+        new BinConfig(
+            "mongo-bin-id",
+            "4000000000000000",
+            "4999999999999999",
+            "Visa",
+            1,
+            "BR",
+            1,
+            1,
+            1,
+            false,
+            true,
+            false,
+            false,
+            false,
+            "credit");
+    BinService binService = new BinService(pan -> Optional.of(bin));
+
+    return new ComumService(
+        terminalService,
+        binService,
+        keyblockService,
+        mock(HsmService.class),
+        new TableProductUniqueService(key -> Optional.empty()));
+  }
+
+  private static CanonicalTransaction canonicalWithVisaCard(String channel) {
+    CanonicalTransaction canonical = canonicalFromChannel(channel);
+    CanonicalTransaction.Card card = new CanonicalTransaction.Card();
+    card.setCardNumber("4000000000000002");
+    canonical.setCard(card);
+    CanonicalTransaction.Security.Ksn ksn = new CanonicalTransaction.Security.Ksn();
+    ksn.setBdkIndicator("fffff17001");
+    CanonicalTransaction.Security security = new CanonicalTransaction.Security();
+    security.setKsn(ksn);
+    canonical.setSecurity(security);
+    return canonical;
   }
 
   private static CanonicalTransaction canonicalFromChannel(String channel) {

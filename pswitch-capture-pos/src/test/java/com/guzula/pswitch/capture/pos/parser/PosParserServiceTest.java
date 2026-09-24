@@ -336,6 +336,7 @@ class PosParserServiceTest {
                     productUniqueService()),
                 new RegrasService(),
                 new TableResponseService(),
+                List.of(),
                 channelResponders));
     posServiceReference.set(service);
 
