@@ -2,15 +2,20 @@ package com.guzula.pswitch.app;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Ponto de entrada. Component scan cobre com.guzula.pswitch.* (todos os módulos). Referência:
  * src/main.ts + src/app.module.ts (guzula-switch).
  *
+ * <p>{@code @EnableScheduling} liga os {@code @Scheduled} do sistema (ex.:
+ * VisaService#sweepExpiredAuthorizations, timeout de correlação com a bandeira).
+ *
  * <p>TODO: subir TcpRawServer (pswitch-transport) no startup, apontando para as portas/hosts hoje
  * configurados via NetworkConfig no MongoDB (projeto original).
  */
 @SpringBootApplication(scanBasePackages = "com.guzula.pswitch")
+@EnableScheduling
 public class SwitchApplication {
 
   public static void main(String[] args) {

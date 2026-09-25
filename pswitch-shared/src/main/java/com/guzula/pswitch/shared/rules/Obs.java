@@ -27,4 +27,7 @@ public final class Obs {
   public static final Rule RULE_999_FAILED_TO_CONVERT_THE_UNIQUE_PRODUCT =
       new Rule(
           999, "Não foi possível definir o produto da bandeira a partir do produto único", "02");
+
+  /** Bandeira não respondeu dentro do prazo — referência: handleTimeout (visa.service.ts). */
+  public static final Rule RULE_091_BRAND_TIMEOUT = new Rule(91, "Timeout do emissor", "91");
 }

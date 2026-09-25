@@ -38,4 +38,8 @@ pswitch:
   hsm:
     response-timeout: ${PSWITCH_HSM_RESPONSE_TIMEOUT:5s}
 
+  visa:
+    response-timeout: ${PSWITCH_VISA_RESPONSE_TIMEOUT:10s}
+    timeout-sweep-interval: ${PSWITCH_VISA_TIMEOUT_SWEEP_INTERVAL_MS:1s}
+
 # Outros endpoints TCP serão adicionados conforme os respectivos módulos forem portados.

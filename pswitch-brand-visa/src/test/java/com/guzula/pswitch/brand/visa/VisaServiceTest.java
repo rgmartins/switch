@@ -7,11 +7,13 @@ import static org.mockito.Mockito.verify;
 
 import com.guzula.pswitch.brand.visa.packer.VisaPackerService;
 import com.guzula.pswitch.brand.visa.parser.VisaParserService;
+import com.guzula.pswitch.comum.tableresponse.TableResponseService;
 import com.guzula.pswitch.nucleo.NucleoService;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import com.guzula.pswitch.shared.iso8583.Iso8583Codec;
 import com.guzula.pswitch.shared.port.OutboundPayloadSender;
 import java.io.ByteArrayOutputStream;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -26,7 +28,12 @@ class VisaServiceTest {
     NucleoService nucleoService = mock(NucleoService.class);
     VisaService visaService =
         new VisaService(
-            new VisaPackerService(), new VisaParserService(), payloadSender, nucleoService);
+            new VisaPackerService(),
+            new VisaParserService(),
+            payloadSender,
+            nucleoService,
+            new TableResponseService(),
+            Duration.ofSeconds(10));
 
     CanonicalTransaction canonical = new CanonicalTransaction();
     canonical.setNsu("1000");
@@ -62,13 +69,57 @@ class VisaServiceTest {
             new VisaPackerService(),
             new VisaParserService(),
             (connectionId, payload) -> {},
-            nucleoService);
+            nucleoService,
+            new TableResponseService(),
+            Duration.ofSeconds(10));
 
     // Nenhum authorize() foi chamado antes — não há nada pendente pra correlacionar.
     visaService.handleInbound("VISA", approvedResponse("00000000", 1, "ZZZZZZ"));
 
     verify(nucleoService, org.mockito.Mockito.never())
         .handleResponse(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void sweepExpiredAuthorizationsBecomesTimeoutDenialAfterResponseTimeout()
+      throws InterruptedException {
+    NucleoService nucleoService = mock(NucleoService.class);
+    VisaService visaService =
+        new VisaService(
+            new VisaPackerService(),
+            new VisaParserService(),
+            (connectionId, payload) -> {},
+            nucleoService,
+            new TableResponseService(),
+            Duration.ofMillis(20));
+
+    CanonicalTransaction canonical = new CanonicalTransaction();
+    canonical.setNsu("1000");
+    canonical.setTerminalId("00891592");
+    CanonicalTransaction.Card card = new CanonicalTransaction.Card();
+    card.setCardNumber("4111111111111111");
+    canonical.setCard(card);
+    CanonicalTransaction.Operation operation = new CanonicalTransaction.Operation();
+    operation.setAmount(3600);
+    canonical.setOperation(operation);
+    CanonicalTransaction.Merchant merchant = new CanonicalTransaction.Merchant();
+    merchant.setMerchant("10169548130001");
+    canonical.setMerchant(merchant);
+
+    visaService.authorize(canonical);
+    Thread.sleep(30); // passa do timeout de 20ms configurado acima
+
+    visaService.sweepExpiredAuthorizations();
+
+    CanonicalTransaction.Response response = canonical.getResponse();
+    assertNotNull(response);
+    assertEquals("91", response.getResponseCode());
+    assertEquals(91, response.getObs().getCode());
+    verify(nucleoService).handleResponse(canonical);
+
+    // Resposta tardia da Visa não acha mais nada pendente — não sobrescreve o timeout já aplicado.
+    visaService.handleInbound("VISA", approvedResponse("00891592", 1000, "LATE01"));
+    assertEquals("91", canonical.getResponse().getResponseCode());
   }
 
   private byte[] approvedResponse(String terminalId, long nsu, String authorizationCode) {
