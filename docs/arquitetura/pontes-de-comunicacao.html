@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pontes de Comunicação</title>
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --fg: #1c232b;
+    --muted: #5b6570;
+    --border: #d7dce1;
+    --card: #ffffff;
+    --accent: #1f7a70;
+    --accent2: #3a56c4;
+    --warn: #a6402a;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12161b;
+      --fg: #e8ecef;
+      --muted: #8b95a1;
+      --border: #2a313a;
+      --card: #1a1f26;
+      --accent: #5fd0c4;
+      --accent2: #8ea2f0;
+      --warn: #e2795a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12161b;
+    --fg: #e8ecef;
+    --muted: #8b95a1;
+    --border: #2a313a;
+    --card: #1a1f26;
+    --accent: #5fd0c4;
+    --accent2: #8ea2f0;
+    --warn: #e2795a;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    padding-inline: 16px;
+  }
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding-block: 40px 56px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  h1 {
+    font-size: 1.7rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  p.intro {
+    max-width: 72ch;
+    color: var(--muted);
+    line-height: 1.55;
+    margin: 0;
+    font-size: 0.98rem;
+  }
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+  figure {
+    margin: 0;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 20px 16px;
+  }
+  figure svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  figcaption {
+    margin-top: 14px;
+    font-size: 0.9rem;
+    color: var(--muted);
+    line-height: 1.5;
+    max-width: 80ch;
+  }
+  .mono {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  .notes {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+  .notes li {
+    display: flex;
+    gap: 10px;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: var(--fg);
+  }
+  .notes li::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 6px;
+    height: 6px;
+    margin-top: 8px;
+    border-radius: 999px;
+    background: var(--warn);
+  }
+  @media (max-width: 640px) {
+    h1 { font-size: 1.4rem; }
+  }
+</style>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="wrap">
+  <h1>Pontes de Comunicação</h1>
+  <p class="intro">
+    Como as três conexões (POS, Visa, HSM) atravessam o Redis entre os dois processos —
+    <span class="mono">pswitch-comunicacao</span> (segura os sockets de verdade) e
+    <span class="mono">pswitch-app</span> (processa, sem nenhum socket). A única coisa que cruza
+    essa linha é fila do Redis — nenhuma chamada de método Java atravessa processo.
+  </p>
+
+  <div class="legend">
+    <span><span class="swatch" style="background:var(--accent)"></span>pswitch-comunicacao (sockets)</span>
+    <span><span class="swatch" style="background:var(--accent2)"></span>pswitch-app (switch, zero sockets)</span>
+    <span><span class="swatch" style="background:var(--warn)"></span>fronteira Redis</span>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 950 470" role="img" aria-label="Três faixas — POS, Visa e HSM — cada uma mostrando um terminal ou rede externa ligado a uma ponte no processo de comunicação, que troca dados com um serviço no processo do switch só através de filas do Redis, nunca por chamada direta.">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+        <marker id="arrowAccent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+        </marker>
+        <marker id="arrowAccent2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent2)"/>
+        </marker>
+      </defs>
+
+      <!-- group headers -->
+      <text x="225" y="18" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--accent)">pswitch-comunicacao</text>
+      <text x="650" y="18" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--accent2)">pswitch-app (switch)</text>
+
+      <!-- Redis divider -->
+      <line x1="485" y1="26" x2="485" y2="452" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="4 5" opacity="0.8"/>
+      <text x="485" y="16" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--warn)">Redis</text>
+
+      <!-- ===================== LANE 1: POS ===================== -->
+      <g>
+        <rect x="20" y="40" width="140" height="100" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="90" y="68" text-anchor="middle" font-size="12.5" font-weight="600" fill="currentColor">Terminais POS</text>
+        <text x="90" y="84" text-anchor="middle" font-size="10" fill="var(--muted)">N conexões</text>
+
+        <rect x="210" y="40" width="220" height="100" rx="8" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="320" y="62" text-anchor="middle" font-size="12" font-weight="600" fill="var(--accent)">PosConnectionBridge</text>
+        <text x="320" y="78" text-anchor="middle" font-size="10" fill="var(--muted)">listener :9000</text>
+        <text x="320" y="92" text-anchor="middle" font-size="9.5" fill="var(--muted)" class="mono">pswitch-comunicacao</text>
+
+        <rect x="540" y="40" width="220" height="100" rx="8" fill="none" stroke="var(--accent2)" stroke-width="1.5"/>
+        <text x="650" y="62" text-anchor="middle" font-size="12" font-weight="600" fill="var(--accent2)">PosService</text>
+        <text x="650" y="78" text-anchor="middle" font-size="10" fill="var(--muted)">thread consumidora</text>
+        <text x="650" y="92" text-anchor="middle" font-size="9.5" fill="var(--muted)" class="mono">pswitch-capture-pos</text>
+
+        <line x1="160" y1="68" x2="210" y2="68" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="430" y1="68" x2="540" y2="68" stroke="var(--warn)" stroke-width="1.5" marker-end="url(#arrowAccent)"/>
+        <text x="485" y="60" text-anchor="middle" font-size="9.5" fill="var(--warn)" class="mono">pos:pedidos</text>
+        <text x="485" y="112" text-anchor="middle" font-size="8.5" fill="var(--muted)" class="mono">connectionId|payload</text>
+
+        <line x1="540" y1="118" x2="430" y2="118" stroke="var(--warn)" stroke-width="1.5" marker-end="url(#arrowAccent2)"/>
+        <text x="485" y="132" text-anchor="middle" font-size="9.5" fill="var(--warn)" class="mono">pos:respostas</text>
+        <line x1="210" y1="118" x2="160" y2="118" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+      </g>
+
+      <!-- ===================== LANE 2: VISA ===================== -->
+      <g>
+        <rect x="20" y="180" width="140" height="100" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="90" y="216" text-anchor="middle" font-size="12.5" font-weight="600" fill="currentColor">Rede Visa</text>
+
+        <rect x="210" y="180" width="220" height="100" rx="8" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="320" y="202" text-anchor="middle" font-size="12" font-weight="600" fill="var(--accent)">VisaConnectionBridge</text>
+        <text x="320" y="218" text-anchor="middle" font-size="10" fill="var(--muted)">burra: só relay de bytes</text>
+        <text x="320" y="232" text-anchor="middle" font-size="9.5" fill="var(--muted)" class="mono">pswitch-comunicacao</text>
+
+        <rect x="540" y="180" width="220" height="100" rx="8" fill="none" stroke="var(--accent2)" stroke-width="1.5"/>
+        <text x="650" y="202" text-anchor="middle" font-size="12" font-weight="600" fill="var(--accent2)">VisaService</text>
+        <text x="650" y="218" text-anchor="middle" font-size="10" fill="var(--muted)">thread consumidora</text>
+        <text x="650" y="232" text-anchor="middle" font-size="9.5" fill="var(--muted)" class="mono">correlação terminalId+NSU</text>
+
+        <line x1="160" y1="208" x2="210" y2="208" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="430" y1="208" x2="540" y2="208" stroke="var(--warn)" stroke-width="1.5" marker-end="url(#arrowAccent)"/>
+        <text x="485" y="200" text-anchor="middle" font-size="9.5" fill="var(--warn)" class="mono">visa:pedidos</text>
+
+        <line x1="540" y1="258" x2="430" y2="258" stroke="var(--warn)" stroke-width="1.5" marker-end="url(#arrowAccent2)"/>
+        <text x="485" y="272" text-anchor="middle" font-size="9.5" fill="var(--warn)" class="mono">visa:respostas</text>
+        <line x1="210" y1="258" x2="160" y2="258" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+      </g>
+
+      <!-- ===================== LANE 3: HSM ===================== -->
+      <g>
+        <rect x="20" y="320" width="140" height="100" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="90" y="356" text-anchor="middle" font-size="12.5" font-weight="600" fill="currentColor">HSM</text>
+
+        <rect x="210" y="320" width="220" height="100" rx="8" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="320" y="342" text-anchor="middle" font-size="12" font-weight="600" fill="var(--accent)">HsmConnectionBridge</text>
+        <text x="320" y="358" text-anchor="middle" font-size="10" fill="var(--muted)">lê o header (4 dígitos)</text>
+        <text x="320" y="372" text-anchor="middle" font-size="9.5" fill="var(--muted)" class="mono">pswitch-comunicacao</text>
+
+        <rect x="540" y="320" width="220" height="100" rx="8" fill="none" stroke="var(--accent2)" stroke-width="1.5"/>
+        <text x="650" y="342" text-anchor="middle" font-size="12" font-weight="600" fill="var(--accent2)">HsmRequestManager</text>
+        <text x="650" y="358" text-anchor="middle" font-size="10" fill="var(--muted)">bloqueia esperando</text>
+        <text x="650" y="372" text-anchor="middle" font-size="9.5" fill="var(--muted)" class="mono">pswitch-external</text>
+
+        <line x1="160" y1="348" x2="210" y2="348" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="430" y1="348" x2="540" y2="348" stroke="var(--warn)" stroke-width="1.5" marker-end="url(#arrowAccent)"/>
+        <text x="485" y="340" text-anchor="middle" font-size="9.5" fill="var(--warn)" class="mono">hsm:pedidos</text>
+
+        <line x1="540" y1="398" x2="430" y2="398" stroke="var(--warn)" stroke-width="1.5" marker-end="url(#arrowAccent2)"/>
+        <text x="485" y="412" text-anchor="middle" font-size="9.5" fill="var(--warn)" class="mono">hsm:resposta:&lt;header&gt;</text>
+        <line x1="210" y1="398" x2="160" y2="398" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+      </g>
+
+      <text x="90" y="450" text-anchor="middle" font-size="9.5" fill="var(--muted)">envia / recebe</text>
+      <text x="650" y="450" text-anchor="middle" font-size="9.5" fill="var(--muted)">processa</text>
+    </svg>
+
+    <figcaption>
+      Cada faixa é independente, mas segue a mesma forma: o mundo externo (terminal, rede) só fala
+      com a ponte, que só fala com a fila; do outro lado, o serviço do switch só fala com a mesma
+      fila, nunca com a ponte diretamente. POS precisa do <span class="mono">connectionId</span>
+      junto no payload porque tem muitos terminais ao mesmo tempo; Visa e HSM têm uma conexão só,
+      então dispensam esse endereço — mas correlacionam de formas diferentes (Visa por
+      terminalId+NSU numa thread contínua, porque autorizar é fogo-e-esquece; HSM por um header de 4
+      dígitos, bloqueando a chamada, porque o HSM sempre responde antes de continuar o processamento).
+    </figcaption>
+  </figure>
+
+  <ul class="notes">
+    <li><b>Validado de ponta a ponta</b> com os dois processos rodando separados de verdade — uma
+      transação POS real passou por HSM (SE e G0) e Visa, aprovada, sem nenhuma chamada de método
+      Java cruzando de um processo pro outro.</li>
+    <li><b><span class="mono">pswitch-app</span> não carrega vestígio nenhum de
+      <span class="mono">pswitch-comunicacao</span></b> — confirmado via
+      <span class="mono">mvn dependency:tree</span>. O <span class="mono">HsmRequestManager</span>
+      mora em <span class="mono">pswitch-external</span> (só precisa de Redis, nunca de socket).</li>
+    <li><b>Ainda não implementado:</b> múltiplas réplicas do switch nem múltiplos grupos
+      co-localizados — hoje é um grupo só, com uma réplica só, de cada lado.</li>
+  </ul>
+</div>
+</body>
+</html>

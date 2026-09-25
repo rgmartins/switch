@@ -227,6 +227,49 @@ Validado de ponta a ponta: os dois processos rodando separados, uma transação 
 POS → HSM (SE e G0) → Visa → aprovação, sem nenhuma chamada de método Java atravessando processo —
 só filas.
 
+```mermaid
+flowchart TB
+    subgraph comunicacao["pswitch-comunicacao — segura os sockets"]
+        direction TB
+        pos_bridge["PosConnectionBridge<br/>listener :9000"]
+        visa_bridge["VisaConnectionBridge<br/>burra: só relay de bytes"]
+        hsm_bridge["HsmConnectionBridge<br/>lê o header (4 dígitos)"]
+    end
+
+    subgraph switch_app["pswitch-app — switch, zero sockets"]
+        direction TB
+        pos_svc["PosService<br/>thread consumidora"]
+        visa_svc["VisaService<br/>thread consumidora + correlação terminalId+NSU"]
+        hsm_svc["HsmRequestManager (pswitch-external)<br/>bloqueia esperando"]
+    end
+
+    posterm["Terminais POS"] --> pos_bridge
+    pos_bridge -->|"pos:pedidos (connectionId + payload)"| pos_svc
+    pos_svc -->|pos:respostas| pos_bridge
+    pos_bridge --> posterm
+
+    visarede["Rede Visa"] --> visa_bridge
+    visa_bridge -->|visa:pedidos| visa_svc
+    visa_svc -->|visa:respostas| visa_bridge
+    visa_bridge --> visarede
+
+    hsmext["HSM"] --> hsm_bridge
+    hsm_bridge -->|hsm:pedidos| hsm_svc
+    hsm_svc -->|"hsm:resposta:(header)"| hsm_bridge
+    hsm_bridge --> hsmext
+
+    classDef bridge fill:#dcfce7,stroke:#16a34a,color:#052e16
+    classDef svc fill:#dbeafe,stroke:#2563eb,color:#172554
+    class pos_bridge,visa_bridge,hsm_bridge bridge
+    class pos_svc,visa_svc,hsm_svc svc
+```
+
+Cada faixa segue a mesma forma — mundo externo fala só com a ponte, ponte fala só com a fila, serviço
+do switch fala só com a mesma fila — mas correlaciona diferente: POS carrega o `connectionId` junto
+porque tem muitos terminais ao mesmo tempo; Visa correlaciona por terminalId+NSU numa thread contínua
+(autorizar é fogo-e-esquece); HSM correlaciona por header, bloqueando a chamada (o switch já sabe que
+vai receber resposta antes de continuar).
+
 **Ainda não implementado:** o modelo de múltiplas réplicas fungíveis (o "switch" continua sendo uma
 única instância do `pswitch-app`) e múltiplos grupos co-localizados em nuvens/regiões diferentes. O
 que existe hoje é o equivalente a **um grupo só, com uma réplica só** — a base sobre a qual o modelo
