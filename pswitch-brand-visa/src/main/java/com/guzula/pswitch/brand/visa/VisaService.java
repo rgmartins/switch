@@ -1,5 +1,8 @@
 package com.guzula.pswitch.brand.visa;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.guzula.pswitch.brand.visa.packer.VisaPackerService;
 import com.guzula.pswitch.brand.visa.parser.VisaAuthorizationResponse;
 import com.guzula.pswitch.brand.visa.parser.VisaParserService;
@@ -13,24 +16,24 @@ import com.guzula.pswitch.shared.port.OutboundPayloadSender;
 import com.guzula.pswitch.shared.rules.Obs;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
  * Referência: visa.service.ts (guzula-switch). Correlaciona request/response outbound por
- * terminalId+NSU — em memória (um {@link ConcurrentHashMap}), diferente do original, que usa Redis;
- * suficiente enquanto o switch roda numa instância só.
+ * terminalId+NSU — via Redis (chave {@code visa:pendente:<chave>}), igual ao original, para que a
+ * resposta possa ser processada por uma réplica diferente da que enviou o pedido. Ver
+ * docs/arquitetura/topologia-implantacao.md.
  *
  * <p>{@link #sweepExpiredAuthorizations} varre periodicamente as transações nunca respondidas
  * dentro de {@code responseTimeout} e as converte em negação — sem isso, uma bandeira que nunca
  * responde deixaria a transação (e o POS) esperando pra sempre. Referência: handleTimeout
  * (visa.service.ts).
- *
- * <p>TODO: portar pra Redis se/quando precisar de múltiplas instâncias do switch.
  */
 @Service
 public class VisaService implements BrandHandler, InboundPayloadHandler {
@@ -38,15 +41,20 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
   private static final Logger LOGGER = Logger.getLogger(VisaService.class.getName());
   private static final String HANDLER_NAME = "VISA";
   private static final String APPROVED_RESPONSE_CODE = "00";
+  private static final String PENDING_KEY_PREFIX = "visa:pendente:";
+  private static final Duration PENDING_TTL_BUFFER = Duration.ofSeconds(30);
 
   private final VisaPackerService packerService;
   private final VisaParserService parserService;
   private final OutboundPayloadSender payloadSender;
   private final NucleoService nucleoService;
   private final TableResponseService tableResponseService;
+  private final StringRedisTemplate redisTemplate;
   private final Duration responseTimeout;
-  private final Map<String, PendingAuthorization> pendingByCorrelationKey =
-      new ConcurrentHashMap<>();
+  private final ObjectMapper objectMapper =
+      new ObjectMapper()
+          .registerModule(new JavaTimeModule())
+          .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
   public VisaService(
       VisaPackerService packerService,
@@ -54,12 +62,14 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
       OutboundPayloadSender payloadSender,
       NucleoService nucleoService,
       TableResponseService tableResponseService,
+      StringRedisTemplate redisTemplate,
       @Value("${pswitch.visa.response-timeout:10s}") Duration responseTimeout) {
     this.packerService = packerService;
     this.parserService = parserService;
     this.payloadSender = payloadSender;
     this.nucleoService = nucleoService;
     this.tableResponseService = tableResponseService;
+    this.redisTemplate = redisTemplate;
     this.responseTimeout = responseTimeout;
   }
 
@@ -76,7 +86,7 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
   @Override
   public void authorize(CanonicalTransaction transaction) {
     String key = correlationKey(transaction.getTerminalId(), transaction.getNsu());
-    pendingByCorrelationKey.put(key, new PendingAuthorization(transaction, Instant.now()));
+    storePending(key, new PendingAuthorization(transaction, Instant.now()));
     byte[] request = packerService.pack(transaction);
     payloadSender.send(HANDLER_NAME, request);
     LOGGER.info(
@@ -89,7 +99,7 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
   public void handleInbound(String connectionId, byte[] payload) {
     VisaAuthorizationResponse response = parserService.parse(payload);
     String key = correlationKey(response.terminalId(), String.valueOf(response.nsu()));
-    PendingAuthorization pending = pendingByCorrelationKey.remove(key);
+    PendingAuthorization pending = claimPending(key);
     if (pending == null) {
       LOGGER.warning(
           () ->
@@ -112,14 +122,22 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
   @Scheduled(fixedDelayString = "${pswitch.visa.timeout-sweep-interval:1s}")
   void sweepExpiredAuthorizations() {
     Instant now = Instant.now();
-    for (Map.Entry<String, PendingAuthorization> entry : pendingByCorrelationKey.entrySet()) {
-      PendingAuthorization pending = entry.getValue();
-      if (Duration.between(pending.sentAt(), now).compareTo(responseTimeout) < 0) {
-        continue;
-      }
-      // remove só se ninguém já processou essa mesma entrada nesse meio tempo (handleInbound).
-      if (pendingByCorrelationKey.remove(entry.getKey(), pending)) {
-        timeout(pending.transaction(), entry.getKey());
+    ScanOptions scanOptions =
+        ScanOptions.scanOptions().match(PENDING_KEY_PREFIX + "*").count(100).build();
+    try (Cursor<String> cursor = redisTemplate.scan(scanOptions)) {
+      while (cursor.hasNext()) {
+        String redisKey = cursor.next();
+        PendingAuthorization candidate = peekPending(redisKey);
+        if (candidate == null
+            || Duration.between(candidate.sentAt(), now).compareTo(responseTimeout) < 0) {
+          continue;
+        }
+        // reivindica de forma atômica só agora — se handleInbound já pegou essa mesma chave nesse
+        // meio tempo, claimPendingByRedisKey devolve null e não fazemos nada.
+        PendingAuthorization claimed = claimPendingByRedisKey(redisKey);
+        if (claimed != null) {
+          timeout(claimed.transaction(), redisKey.substring(PENDING_KEY_PREFIX.length()));
+        }
       }
     }
   }
@@ -145,6 +163,45 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
     CanonicalTransaction.Emv emv = new CanonicalTransaction.Emv();
     response.setEmv(emv);
     transaction.setResponse(response);
+  }
+
+  private void storePending(String correlationKey, PendingAuthorization pending) {
+    redisTemplate
+        .opsForValue()
+        .set(
+            PENDING_KEY_PREFIX + correlationKey,
+            writeJson(pending),
+            responseTimeout.plus(PENDING_TTL_BUFFER));
+  }
+
+  private PendingAuthorization peekPending(String redisKey) {
+    String json = redisTemplate.opsForValue().get(redisKey);
+    return json == null ? null : readJson(json);
+  }
+
+  private PendingAuthorization claimPending(String correlationKey) {
+    return claimPendingByRedisKey(PENDING_KEY_PREFIX + correlationKey);
+  }
+
+  private PendingAuthorization claimPendingByRedisKey(String redisKey) {
+    String json = redisTemplate.opsForValue().getAndDelete(redisKey);
+    return json == null ? null : readJson(json);
+  }
+
+  private String writeJson(PendingAuthorization pending) {
+    try {
+      return objectMapper.writeValueAsString(pending);
+    } catch (Exception exception) {
+      throw new IllegalStateException("Falha ao serializar autorização pendente", exception);
+    }
+  }
+
+  private PendingAuthorization readJson(String json) {
+    try {
+      return objectMapper.readValue(json, PendingAuthorization.class);
+    } catch (Exception exception) {
+      throw new IllegalStateException("Falha ao desserializar autorização pendente", exception);
+    }
   }
 
   private static String correlationKey(String terminalId, String nsu) {

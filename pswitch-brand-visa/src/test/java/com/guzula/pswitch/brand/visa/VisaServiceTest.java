@@ -17,8 +17,21 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
+/**
+ * Requer um Redis acessível em localhost:6379 (ver switch-docker/docker-compose.yml) — a correlação
+ * do {@link VisaService} agora mora lá, não em memória do processo.
+ *
+ * <p>A transação que chega em {@code nucleoService.handleResponse(...)} não é mais o mesmo objeto
+ * que {@code authorize()} recebeu (foi serializada e desserializada via Redis no meio do caminho) —
+ * por isso os testes capturam o argumento em vez de reler o campo do objeto original.
+ */
 class VisaServiceTest {
+
+  private static final StringRedisTemplate REDIS = redisTemplate();
 
   @Test
   void authorizeSendsRequestAndHandleInboundCorrelatesPopulatesAndNotifiesNucleo() {
@@ -33,6 +46,7 @@ class VisaServiceTest {
             payloadSender,
             nucleoService,
             new TableResponseService(),
+            REDIS,
             Duration.ofSeconds(10));
 
     CanonicalTransaction canonical = new CanonicalTransaction();
@@ -54,11 +68,16 @@ class VisaServiceTest {
     byte[] response = approvedResponse("00891592", 1000, "AB12C3");
     visaService.handleInbound("VISA", response);
 
-    CanonicalTransaction.Response result = canonical.getResponse();
+    ArgumentCaptor<CanonicalTransaction> captor =
+        ArgumentCaptor.forClass(CanonicalTransaction.class);
+    verify(nucleoService).handleResponse(captor.capture());
+    CanonicalTransaction handled = captor.getValue();
+    assertEquals(canonical.getTerminalId(), handled.getTerminalId());
+    assertEquals(canonical.getNsu(), handled.getNsu());
+    CanonicalTransaction.Response result = handled.getResponse();
     assertNotNull(result);
     assertEquals("00", result.getResponseCode());
     assertEquals("AB12C3", result.getAuthorizationCode());
-    verify(nucleoService).handleResponse(canonical);
   }
 
   @Test
@@ -71,6 +90,7 @@ class VisaServiceTest {
             (connectionId, payload) -> {},
             nucleoService,
             new TableResponseService(),
+            REDIS,
             Duration.ofSeconds(10));
 
     // Nenhum authorize() foi chamado antes — não há nada pendente pra correlacionar.
@@ -91,6 +111,7 @@ class VisaServiceTest {
             (connectionId, payload) -> {},
             nucleoService,
             new TableResponseService(),
+            REDIS,
             Duration.ofMillis(20));
 
     CanonicalTransaction canonical = new CanonicalTransaction();
@@ -111,15 +132,18 @@ class VisaServiceTest {
 
     visaService.sweepExpiredAuthorizations();
 
-    CanonicalTransaction.Response response = canonical.getResponse();
+    ArgumentCaptor<CanonicalTransaction> captor =
+        ArgumentCaptor.forClass(CanonicalTransaction.class);
+    verify(nucleoService).handleResponse(captor.capture());
+    CanonicalTransaction.Response response = captor.getValue().getResponse();
     assertNotNull(response);
     assertEquals("91", response.getResponseCode());
     assertEquals(91, response.getObs().getCode());
-    verify(nucleoService).handleResponse(canonical);
 
     // Resposta tardia da Visa não acha mais nada pendente — não sobrescreve o timeout já aplicado.
     visaService.handleInbound("VISA", approvedResponse("00891592", 1000, "LATE01"));
-    assertEquals("91", canonical.getResponse().getResponseCode());
+    verify(nucleoService, org.mockito.Mockito.times(1))
+        .handleResponse(org.mockito.ArgumentMatchers.any());
   }
 
   private byte[] approvedResponse(String terminalId, long nsu, String authorizationCode) {
@@ -145,5 +169,13 @@ class VisaServiceTest {
     int byteIndex = (de - 1) / 8;
     int bitIndex = (de - 1) % 8;
     bitmap[byteIndex] |= (byte) (0x80 >> bitIndex);
+  }
+
+  private static StringRedisTemplate redisTemplate() {
+    LettuceConnectionFactory connectionFactory = new LettuceConnectionFactory("localhost", 6379);
+    connectionFactory.afterPropertiesSet();
+    StringRedisTemplate template = new StringRedisTemplate(connectionFactory);
+    template.afterPropertiesSet();
+    return template;
   }
 }
