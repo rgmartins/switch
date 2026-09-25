@@ -48,6 +48,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 class PosParserServiceTest {
 
@@ -268,7 +270,7 @@ class PosParserServiceTest {
         };
     HsmService hsmService =
         new HsmService(
-            new HsmRequestManager(payloadSender, Duration.ofSeconds(1)),
+            new HsmRequestManager(payloadSender, redisTemplate(), Duration.ofSeconds(1)),
             new HsmSeProtocol(),
             new HsmG0Protocol());
     hsmReference.set(hsmService);
@@ -376,5 +378,13 @@ class PosParserServiceTest {
 
   private static String stripAnsi(String value) {
     return value.replaceAll("\u001B\\[[0-9;]*m", "");
+  }
+
+  private static StringRedisTemplate redisTemplate() {
+    LettuceConnectionFactory connectionFactory = new LettuceConnectionFactory("localhost", 6379);
+    connectionFactory.afterPropertiesSet();
+    StringRedisTemplate template = new StringRedisTemplate(connectionFactory);
+    template.afterPropertiesSet();
+    return template;
   }
 }

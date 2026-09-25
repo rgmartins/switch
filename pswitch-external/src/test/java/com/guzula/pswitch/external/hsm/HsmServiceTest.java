@@ -9,11 +9,18 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
+/**
+ * Requer um Redis acessível em localhost:6379 (ver switch-docker/docker-compose.yml) — a correlação
+ * do {@link HsmRequestManager} agora mora lá, não em memória do processo.
+ */
 class HsmServiceTest {
 
   private static final String SOURCE_KEY = "0123456789ABCDEFFEDCBA9876543210";
   private static final String DESTINATION_KEY = "FEDCBA98765432100123456789ABCDEF";
+  private static final StringRedisTemplate REDIS = redisTemplate();
 
   @Test
   void sendsSeWaitsForSfAndPopulatesCard() {
@@ -32,6 +39,7 @@ class HsmServiceTest {
                           .getBytes(StandardCharsets.US_ASCII);
                   serviceReference.get().handleInbound(connectionId, response);
                 },
+                REDIS,
                 Duration.ofSeconds(1)),
             new HsmSeProtocol(),
             new HsmG0Protocol());
@@ -55,7 +63,7 @@ class HsmServiceTest {
   void failsWhenSfDoesNotArriveBeforeTimeout() {
     HsmService service =
         new HsmService(
-            new HsmRequestManager((connectionId, payload) -> {}, Duration.ofMillis(20)),
+            new HsmRequestManager((connectionId, payload) -> {}, REDIS, Duration.ofMillis(20)),
             new HsmSeProtocol(),
             new HsmG0Protocol());
 
@@ -81,6 +89,7 @@ class HsmServiceTest {
                       (header + "G10016" + translatedPinBlock).getBytes(StandardCharsets.US_ASCII);
                   serviceReference.get().handleInbound(connectionId, response);
                 },
+                REDIS,
                 Duration.ofSeconds(1)),
             new HsmSeProtocol(),
             new HsmG0Protocol());
@@ -114,5 +123,13 @@ class HsmServiceTest {
     card.setCardNumber("4123456789012349");
     canonical.setCard(card);
     return canonical;
+  }
+
+  private static StringRedisTemplate redisTemplate() {
+    LettuceConnectionFactory connectionFactory = new LettuceConnectionFactory("localhost", 6379);
+    connectionFactory.afterPropertiesSet();
+    StringRedisTemplate template = new StringRedisTemplate(connectionFactory);
+    template.afterPropertiesSet();
+    return template;
   }
 }
