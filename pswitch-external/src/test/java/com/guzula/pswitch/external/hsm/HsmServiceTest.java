@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.guzula.pswitch.comunicacao.hsm.HsmRequestManager;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;

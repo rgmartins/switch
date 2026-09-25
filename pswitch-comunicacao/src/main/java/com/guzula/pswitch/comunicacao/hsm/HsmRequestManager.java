@@ -1,4 +1,4 @@
-package com.guzula.pswitch.external.hsm;
+package com.guzula.pswitch.comunicacao.hsm;
 
 import com.guzula.pswitch.shared.port.OutboundPayloadSender;
 import java.nio.charset.StandardCharsets;
@@ -18,11 +18,16 @@ import org.springframework.stereotype.Component;
  * várias réplicas, a resposta pode ser recebida por uma réplica diferente da que enviou o pedido —
  * ver docs/arquitetura/topologia-implantacao.md. O header do protocolo com o HSM (4 dígitos) dobra
  * como identificador da chave no Redis.
+ *
+ * <p>Mora em {@code pswitch-comunicacao} (não em {@code pswitch-external}, onde fica o {@code
+ * HsmService} que a injeta) porque é a peça que sabe ler o header pra rotear a resposta — o mesmo
+ * papel do {@code TcpMessageDispatcher}, só que específico do protocolo do HSM.
  */
 @Component
 public final class HsmRequestManager {
 
   private static final Logger LOGGER = Logger.getLogger(HsmRequestManager.class.getName());
+  private static final String CONNECTION_NAME = "HSM";
   private static final int HEADER_LENGTH = 4;
   private static final int MAX_HEADERS = 10_000;
   private static final String CLAIM_KEY_PREFIX = "hsm:pendente:";
@@ -51,7 +56,7 @@ public final class HsmRequestManager {
     String responseKey = RESPONSE_KEY_PREFIX + header;
     try {
       byte[] request = addHeader(header, commandPayload);
-      payloadSender.send(HsmService.CONNECTION_NAME, request);
+      payloadSender.send(CONNECTION_NAME, request);
       LOGGER.info(() -> "Comando " + requestCommand + " enviado ao HSM: header=" + header);
 
       String hexResponse = redisTemplate.opsForList().leftPop(responseKey, responseTimeout);

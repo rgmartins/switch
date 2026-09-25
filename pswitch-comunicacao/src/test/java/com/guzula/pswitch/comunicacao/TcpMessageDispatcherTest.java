@@ -1,4 +1,4 @@
-package com.guzula.pswitch.app.config;
+package com.guzula.pswitch.comunicacao;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;

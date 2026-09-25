@@ -1,5 +1,6 @@
 package com.guzula.pswitch.external.hsm;
 
+import com.guzula.pswitch.comunicacao.hsm.HsmRequestManager;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import com.guzula.pswitch.shared.port.InboundPayloadHandler;
 import java.util.logging.Logger;

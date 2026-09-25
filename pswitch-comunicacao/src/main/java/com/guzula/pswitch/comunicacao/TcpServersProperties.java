@@ -1,4 +1,4 @@
-package com.guzula.pswitch.app.config;
+package com.guzula.pswitch.comunicacao;
 
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;

@@ -1,4 +1,4 @@
-package com.guzula.pswitch.app.config;
+package com.guzula.pswitch.comunicacao;
 
 import com.guzula.pswitch.transport.TcpOutboundPool;
 import org.springframework.context.annotation.Bean;

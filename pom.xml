@@ -81,6 +81,11 @@
         <artifactId>pswitch-liquidacao</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <dependency>
+        <groupId>com.guzula.pswitch</groupId>
+        <artifactId>pswitch-comunicacao</artifactId>
+        <version>${project.version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -94,6 +99,7 @@
     <module>pswitch-brand-visa</module>
     <module>pswitch-capture-pos</module>
     <module>pswitch-liquidacao</module>
+    <module>pswitch-comunicacao</module>
     <module>pswitch-app</module>
   </modules>
 

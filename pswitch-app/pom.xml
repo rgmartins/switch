@@ -22,7 +22,7 @@
     </dependency>
     <dependency>
       <groupId>com.guzula.pswitch</groupId>
-      <artifactId>pswitch-transport</artifactId>
+      <artifactId>pswitch-comunicacao</artifactId>
     </dependency>
     <dependency>
       <groupId>com.guzula.pswitch</groupId>
