@@ -1,6 +1,5 @@
-package com.guzula.pswitch.comunicacao.hsm;
+package com.guzula.pswitch.external.hsm;
 
-import com.guzula.pswitch.shared.port.OutboundPayloadSender;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HexFormat;
@@ -12,41 +11,35 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Envia requisições ao HSM e correlaciona cada resposta pelo header, via Redis.
+ * Usado pelo switch ({@link HsmService}) para mandar um comando ao HSM e esperar a resposta — só
+ * fala com o Redis, nunca com socket. Publica o pedido já pronto (com header) na fila {@code
+ * hsm:pedidos}; quem tem a conexão de verdade é o {@code HsmConnectionBridge}, em
+ * pswitch-comunicacao, rodando num processo separado.
  *
- * <p>A correlação mora no Redis (não em memória do processo) porque, quando o switch rodar em
- * várias réplicas, a resposta pode ser recebida por uma réplica diferente da que enviou o pedido —
- * ver docs/arquitetura/topologia-implantacao.md. O header do protocolo com o HSM (4 dígitos) dobra
- * como identificador da chave no Redis.
- *
- * <p>Mora em {@code pswitch-comunicacao} (não em {@code pswitch-external}, onde fica o {@code
- * HsmService} que a injeta) porque é a peça que sabe ler o header pra rotear a resposta — o mesmo
- * papel do {@code TcpMessageDispatcher}, só que específico do protocolo do HSM.
+ * <p>Mora aqui (não em pswitch-comunicacao) de propósito: o switch (pswitch-app) não deve ter
+ * nenhuma dependência de pswitch-comunicacao — essa classe só precisa do Redis, então fica junto da
+ * lógica de negócio que a usa. Ver docs/arquitetura/topologia-implantacao.md.
  */
 @Component
 public final class HsmRequestManager {
 
   private static final Logger LOGGER = Logger.getLogger(HsmRequestManager.class.getName());
-  private static final String CONNECTION_NAME = "HSM";
-  private static final int HEADER_LENGTH = 4;
   private static final int MAX_HEADERS = 10_000;
   private static final String CLAIM_KEY_PREFIX = "hsm:pendente:";
   private static final String RESPONSE_KEY_PREFIX = "hsm:resposta:";
+  static final String REQUEST_QUEUE_KEY = "hsm:pedidos";
   private static final Duration CLAIM_TTL_BUFFER = Duration.ofSeconds(5);
 
-  private final OutboundPayloadSender payloadSender;
   private final StringRedisTemplate redisTemplate;
   private final Duration responseTimeout;
   private final AtomicInteger nextHeader = new AtomicInteger();
 
   public HsmRequestManager(
-      OutboundPayloadSender payloadSender,
       StringRedisTemplate redisTemplate,
       @Value("${pswitch.hsm.response-timeout:5s}") Duration responseTimeout) {
     if (responseTimeout == null || responseTimeout.isZero() || responseTimeout.isNegative()) {
       throw new IllegalArgumentException("Timeout de resposta do HSM deve ser maior que zero");
     }
-    this.payloadSender = payloadSender;
     this.redisTemplate = redisTemplate;
     this.responseTimeout = responseTimeout;
   }
@@ -56,8 +49,9 @@ public final class HsmRequestManager {
     String responseKey = RESPONSE_KEY_PREFIX + header;
     try {
       byte[] request = addHeader(header, commandPayload);
-      payloadSender.send(CONNECTION_NAME, request);
-      LOGGER.info(() -> "Comando " + requestCommand + " enviado ao HSM: header=" + header);
+      redisTemplate.opsForList().rightPush(REQUEST_QUEUE_KEY, HexFormat.of().formatHex(request));
+      LOGGER.info(
+          () -> "Comando " + requestCommand + " publicado na fila do HSM: header=" + header);
 
       String hexResponse = redisTemplate.opsForList().leftPop(responseKey, responseTimeout);
       if (hexResponse == null) {
@@ -77,23 +71,6 @@ public final class HsmRequestManager {
     System.arraycopy(headerBytes, 0, request, 0, headerBytes.length);
     System.arraycopy(commandPayload, 0, request, headerBytes.length, commandPayload.length);
     return request;
-  }
-
-  public void complete(byte[] payload) {
-    if (payload.length < HEADER_LENGTH) {
-      throw new IllegalArgumentException("Resposta HSM menor que o header de quatro posições");
-    }
-
-    String header = new String(payload, 0, HEADER_LENGTH, StandardCharsets.US_ASCII);
-    if (Boolean.FALSE.equals(redisTemplate.hasKey(CLAIM_KEY_PREFIX + header))) {
-      LOGGER.warning(() -> "Resposta HSM sem requisição pendente: header=" + header);
-      return;
-    }
-
-    String responseKey = RESPONSE_KEY_PREFIX + header;
-    String hexPayload = HexFormat.of().formatHex(payload);
-    redisTemplate.opsForList().rightPush(responseKey, hexPayload);
-    redisTemplate.expire(responseKey, responseTimeout.plus(CLAIM_TTL_BUFFER));
   }
 
   private String claimHeader() {

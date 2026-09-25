@@ -16,30 +16,12 @@ spring:
 server:
   port: 8080
 
+# Nenhuma conexão TCP é aberta aqui — POS, Visa e HSM são todos atendidos pelo processo separado
+# pswitch-comunicacao, via filas Redis. Ver docs/arquitetura/topologia-implantacao.md.
 pswitch:
-  tcp:
-    listeners:
-      - channel: POS
-        handler: POS
-        host: 0.0.0.0
-        port: 9000
-    clients:
-      - channel: HSM
-        handler: HSM
-        host: ${PSWITCH_HSM_HOST:127.0.0.1}
-        port: ${PSWITCH_HSM_PORT:6002}
-        reconnect-delay-milliseconds: ${PSWITCH_HSM_RECONNECT_DELAY_MS:5000}
-      - channel: VISA
-        handler: VISA
-        host: ${PSWITCH_VISA_HOST:127.0.0.1}
-        port: ${PSWITCH_VISA_PORT:5000}
-        reconnect-delay-milliseconds: ${PSWITCH_VISA_RECONNECT_DELAY_MS:5000}
-
   hsm:
     response-timeout: ${PSWITCH_HSM_RESPONSE_TIMEOUT:5s}
 
   visa:
     response-timeout: ${PSWITCH_VISA_RESPONSE_TIMEOUT:10s}
     timeout-sweep-interval: ${PSWITCH_VISA_TIMEOUT_SWEEP_INTERVAL_MS:1000}
-
-# Outros endpoints TCP serão adicionados conforme os respectivos módulos forem portados.

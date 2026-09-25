@@ -13,10 +13,9 @@
   <artifactId>pswitch-comunicacao</artifactId>
   <packaging>jar</packaging>
   <name>pswitch-comunicacao</name>
-  <description>Módulo de conexões: segura os sockets de verdade (POS, bandeiras, HSM) e faz a ponte
-    com o switch só via fila — o switch nunca fala socket diretamente. Ver
-    docs/arquitetura/topologia-implantacao.md. Ainda sem implementação; criado como esqueleto para
-    receber os listeners aos poucos, começando pelo HSM.</description>
+  <description>Processo executável separado do switch: segura os sockets de verdade (hoje, HSM;
+    POS e Visa ainda não migraram) e faz a ponte com o switch via filas Redis — o switch nunca fala
+    socket diretamente. Ver docs/arquitetura/topologia-implantacao.md.</description>
 
   <dependencies>
     <dependency>
@@ -41,4 +40,30 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <!--
+        classifier="exec": sem isso, o goal repackage substitui o .jar normal por um executável
+        (BOOT-INF/classes/...), que deixa de servir como dependência de compilação pra quem usa
+        HsmRequestManager (pswitch-external). Com classifier, o .jar principal continua uma
+        biblioteca comum, e switch-comunicacao-exec.jar é o executável.
+      -->
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <mainClass>com.guzula.pswitch.comunicacao.ComunicacaoApplication</mainClass>
+          <classifier>exec</classifier>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>

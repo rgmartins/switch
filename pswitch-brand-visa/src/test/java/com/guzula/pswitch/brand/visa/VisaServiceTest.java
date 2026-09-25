@@ -3,6 +3,7 @@ package com.guzula.pswitch.brand.visa;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 import com.guzula.pswitch.brand.visa.packer.VisaPackerService;
@@ -11,11 +12,10 @@ import com.guzula.pswitch.comum.tableresponse.TableResponseService;
 import com.guzula.pswitch.nucleo.NucleoService;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import com.guzula.pswitch.shared.iso8583.Iso8583Codec;
-import com.guzula.pswitch.shared.port.OutboundPayloadSender;
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HexFormat;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -25,29 +25,39 @@ import org.springframework.data.redis.core.StringRedisTemplate;
  * Requer um Redis acessível em localhost:6379 (ver switch-docker/docker-compose.yml) — a correlação
  * do {@link VisaService} agora mora lá, não em memória do processo.
  *
+ * <p>{@code authorize()} publica em {@code visa:pedidos} em vez de mandar direto pro socket, e uma
+ * thread própria consome {@code visa:respostas} — aqui simulamos o papel do {@code
+ * VisaConnectionBridge} (que na vida real roda no processo de comunicação, separado deste)
+ * lendo/escrevendo essas mesmas filas direto via Redis.
+ *
  * <p>A transação que chega em {@code nucleoService.handleResponse(...)} não é mais o mesmo objeto
  * que {@code authorize()} recebeu (foi serializada e desserializada via Redis no meio do caminho) —
  * por isso os testes capturam o argumento em vez de reler o campo do objeto original.
  */
 class VisaServiceTest {
 
+  private static final String REQUEST_QUEUE_KEY = "visa:pedidos";
+  private static final String RESPONSE_QUEUE_KEY = "visa:respostas";
   private static final StringRedisTemplate REDIS = redisTemplate();
+
+  @BeforeEach
+  void limpaFilas() {
+    REDIS.delete(REQUEST_QUEUE_KEY);
+    REDIS.delete(RESPONSE_QUEUE_KEY);
+  }
 
   @Test
   void authorizeSendsRequestAndHandleInboundCorrelatesPopulatesAndNotifiesNucleo() {
-    Map<String, byte[]> sent = new HashMap<>();
-    OutboundPayloadSender payloadSender =
-        (connectionId, payload) -> sent.put(connectionId, payload);
     NucleoService nucleoService = mock(NucleoService.class);
     VisaService visaService =
         new VisaService(
             new VisaPackerService(),
             new VisaParserService(),
-            payloadSender,
             nucleoService,
             new TableResponseService(),
             REDIS,
             Duration.ofSeconds(10));
+    visaService.start();
 
     CanonicalTransaction canonical = new CanonicalTransaction();
     canonical.setNsu("1000");
@@ -63,14 +73,15 @@ class VisaServiceTest {
     canonical.setMerchant(merchant);
 
     visaService.authorize(canonical);
-    assertNotNull(sent.get("VISA"));
+    String hexRequest = REDIS.opsForList().leftPop(REQUEST_QUEUE_KEY, Duration.ofSeconds(3));
+    assertNotNull(hexRequest);
 
     byte[] response = approvedResponse("00891592", 1000, "AB12C3");
-    visaService.handleInbound("VISA", response);
+    REDIS.opsForList().rightPush(RESPONSE_QUEUE_KEY, HexFormat.of().formatHex(response));
 
     ArgumentCaptor<CanonicalTransaction> captor =
         ArgumentCaptor.forClass(CanonicalTransaction.class);
-    verify(nucleoService).handleResponse(captor.capture());
+    verify(nucleoService, timeout(3000)).handleResponse(captor.capture());
     CanonicalTransaction handled = captor.getValue();
     assertEquals(canonical.getTerminalId(), handled.getTerminalId());
     assertEquals(canonical.getNsu(), handled.getNsu());
@@ -81,20 +92,22 @@ class VisaServiceTest {
   }
 
   @Test
-  void handleInboundIgnoresResponseWithoutAPendingTransaction() {
+  void handleInboundIgnoresResponseWithoutAPendingTransaction() throws InterruptedException {
     NucleoService nucleoService = mock(NucleoService.class);
     VisaService visaService =
         new VisaService(
             new VisaPackerService(),
             new VisaParserService(),
-            (connectionId, payload) -> {},
             nucleoService,
             new TableResponseService(),
             REDIS,
             Duration.ofSeconds(10));
+    visaService.start();
 
     // Nenhum authorize() foi chamado antes — não há nada pendente pra correlacionar.
-    visaService.handleInbound("VISA", approvedResponse("00000000", 1, "ZZZZZZ"));
+    byte[] response = approvedResponse("00000000", 1, "ZZZZZZ");
+    REDIS.opsForList().rightPush(RESPONSE_QUEUE_KEY, HexFormat.of().formatHex(response));
+    Thread.sleep(500); // dá tempo da thread consumidora processar (e não fazer nada) a resposta
 
     verify(nucleoService, org.mockito.Mockito.never())
         .handleResponse(org.mockito.ArgumentMatchers.any());
@@ -108,11 +121,11 @@ class VisaServiceTest {
         new VisaService(
             new VisaPackerService(),
             new VisaParserService(),
-            (connectionId, payload) -> {},
             nucleoService,
             new TableResponseService(),
             REDIS,
             Duration.ofMillis(20));
+    visaService.start();
 
     CanonicalTransaction canonical = new CanonicalTransaction();
     canonical.setNsu("1000");
@@ -141,7 +154,9 @@ class VisaServiceTest {
     assertEquals(91, response.getObs().getCode());
 
     // Resposta tardia da Visa não acha mais nada pendente — não sobrescreve o timeout já aplicado.
-    visaService.handleInbound("VISA", approvedResponse("00891592", 1000, "LATE01"));
+    byte[] lateResponse = approvedResponse("00891592", 1000, "LATE01");
+    REDIS.opsForList().rightPush(RESPONSE_QUEUE_KEY, HexFormat.of().formatHex(lateResponse));
+    Thread.sleep(500);
     verify(nucleoService, org.mockito.Mockito.times(1))
         .handleResponse(org.mockito.ArgumentMatchers.any());
   }

@@ -1,17 +1,21 @@
 package com.guzula.pswitch.external.hsm;
 
-import com.guzula.pswitch.comunicacao.hsm.HsmRequestManager;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
-import com.guzula.pswitch.shared.port.InboundPayloadHandler;
 import java.util.logging.Logger;
 import org.springframework.stereotype.Service;
 
-/** Coordena os comandos enviados ao HSM. */
+/**
+ * Coordena os comandos enviados ao HSM.
+ *
+ * <p>Não fala com o socket, nem sabe que existe — manda o comando e espera a resposta através do
+ * {@link HsmRequestManager} (fila), que por sua vez é atendida pelo {@code HsmConnectionBridge} no
+ * processo separado de comunicação. Por isso não implementa mais {@code InboundPayloadHandler}: não
+ * há conexão nenhuma aqui pra registrar.
+ */
 @Service
-public class HsmService implements InboundPayloadHandler {
+public class HsmService {
 
   private static final Logger LOGGER = Logger.getLogger(HsmService.class.getName());
-  static final String CONNECTION_NAME = "HSM";
 
   private final HsmRequestManager requestManager;
   private final HsmSeProtocol seProtocol;
@@ -22,16 +26,6 @@ public class HsmService implements InboundPayloadHandler {
     this.requestManager = requestManager;
     this.seProtocol = seProtocol;
     this.g0Protocol = g0Protocol;
-  }
-
-  @Override
-  public String handlerName() {
-    return CONNECTION_NAME;
-  }
-
-  @Override
-  public void handleInbound(String connectionId, byte[] payload) {
-    requestManager.complete(payload);
   }
 
   public void decryptCardData(CanonicalTransaction canonical, String sourceKey) {

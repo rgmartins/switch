@@ -10,7 +10,11 @@ import org.springframework.boot.ansi.AnsiOutput;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-/** Cria os listeners TCP configurados e conecta cada um ao canal correspondente. */
+/**
+ * Cria os listeners TCP configurados e conecta cada um ao canal correspondente. Ver {@link
+ * TcpTransportConfiguration} — cada processo só abre o que estiver no seu próprio {@code
+ * application.yml}.
+ */
 @Component
 @EnableConfigurationProperties(TcpServersProperties.class)
 public class TcpServersConfiguration {

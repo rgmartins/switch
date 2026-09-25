@@ -9,10 +9,14 @@ import com.guzula.pswitch.nucleo.NucleoService;
 import com.guzula.pswitch.nucleo.correlation.RedisPendingCorrelator;
 import com.guzula.pswitch.shared.SwitchConstants;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
-import com.guzula.pswitch.shared.port.InboundPayloadHandler;
-import com.guzula.pswitch.shared.port.OutboundPayloadSender;
 import com.guzula.pswitch.shared.rules.Obs;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.time.Duration;
+import java.util.HexFormat;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -24,44 +28,65 @@ import org.springframework.stereotype.Service;
  * terminalId+NSU usando {@link RedisPendingCorrelator}, para que a resposta possa ser processada
  * por uma réplica diferente da que enviou o pedido. Ver docs/arquitetura/topologia-implantacao.md.
  *
+ * <p>Não fala com socket algum — publica o pedido em {@code visa:pedidos} e lê as respostas de
+ * {@code visa:respostas} numa thread própria (diferente do HSM, que bloqueia esperando; aqui é
+ * fogo-e-esquece, então precisa de um consumidor contínuo). Quem segura a conexão de verdade é o
+ * {@code VisaConnectionBridge}, em pswitch-comunicacao, processo separado. Essa classe não fica
+ * sabendo de nenhum dos dois — mora aqui de propósito, pra o switch não depender de
+ * pswitch-comunicacao.
+ *
  * <p>{@link #sweepExpiredAuthorizations} varre periodicamente as transações nunca respondidas
  * dentro de {@code responseTimeout} e as converte em negação — sem isso, uma bandeira que nunca
  * responde deixaria a transação (e o POS) esperando pra sempre. Referência: handleTimeout
  * (visa.service.ts).
  */
 @Service
-public class VisaService implements BrandHandler, InboundPayloadHandler {
+public class VisaService implements BrandHandler {
 
   private static final Logger LOGGER = Logger.getLogger(VisaService.class.getName());
-  private static final String HANDLER_NAME = "VISA";
   private static final String APPROVED_RESPONSE_CODE = "00";
   private static final String PENDING_KEY_PREFIX = "visa:pendente:";
   private static final Duration PENDING_TTL_BUFFER = Duration.ofSeconds(30);
+  private static final String REQUEST_QUEUE_KEY = "visa:pedidos";
+  private static final String RESPONSE_QUEUE_KEY = "visa:respostas";
+  private static final Duration POLL_TIMEOUT = Duration.ofSeconds(5);
 
   private final VisaPackerService packerService;
   private final VisaParserService parserService;
-  private final OutboundPayloadSender payloadSender;
   private final NucleoService nucleoService;
   private final TableResponseService tableResponseService;
   private final RedisPendingCorrelator<CanonicalTransaction> correlator;
+  private final StringRedisTemplate redisTemplate;
   private final Duration responseTimeout;
+  private final ExecutorService worker = Executors.newSingleThreadExecutor();
+  private volatile boolean running = true;
 
   public VisaService(
       VisaPackerService packerService,
       VisaParserService parserService,
-      OutboundPayloadSender payloadSender,
       NucleoService nucleoService,
       TableResponseService tableResponseService,
       StringRedisTemplate redisTemplate,
       @Value("${pswitch.visa.response-timeout:10s}") Duration responseTimeout) {
     this.packerService = packerService;
     this.parserService = parserService;
-    this.payloadSender = payloadSender;
     this.nucleoService = nucleoService;
     this.tableResponseService = tableResponseService;
     this.correlator =
         new RedisPendingCorrelator<>(redisTemplate, PENDING_KEY_PREFIX, CanonicalTransaction.class);
+    this.redisTemplate = redisTemplate;
     this.responseTimeout = responseTimeout;
+  }
+
+  @PostConstruct
+  void start() {
+    worker.execute(this::consumeResponsesLoop);
+  }
+
+  @PreDestroy
+  void stop() {
+    running = false;
+    worker.shutdownNow();
   }
 
   @Override
@@ -70,24 +95,33 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
   }
 
   @Override
-  public String handlerName() {
-    return HANDLER_NAME;
-  }
-
-  @Override
   public void authorize(CanonicalTransaction transaction) {
     String key = correlationKey(transaction.getTerminalId(), transaction.getNsu());
     correlator.store(key, transaction, responseTimeout.plus(PENDING_TTL_BUFFER));
     byte[] request = packerService.pack(transaction);
-    payloadSender.send(HANDLER_NAME, request);
+    redisTemplate.opsForList().rightPush(REQUEST_QUEUE_KEY, HexFormat.of().formatHex(request));
     LOGGER.info(
         () ->
-            "[VisaService] Mensagem enviada ao simulador Visa (%d bytes): %s"
+            "[VisaService] Pedido publicado na fila da Visa (%d bytes): %s"
                 .formatted(request.length, bytesToHex(request)));
   }
 
-  @Override
-  public void handleInbound(String connectionId, byte[] payload) {
+  private void consumeResponsesLoop() {
+    while (running) {
+      try {
+        String hexResponse = redisTemplate.opsForList().leftPop(RESPONSE_QUEUE_KEY, POLL_TIMEOUT);
+        if (hexResponse != null) {
+          handleInbound(HexFormat.of().parseHex(hexResponse));
+        }
+      } catch (RuntimeException exception) {
+        if (running) {
+          LOGGER.log(Level.WARNING, "Falha lendo a fila de respostas da Visa", exception);
+        }
+      }
+    }
+  }
+
+  private void handleInbound(byte[] payload) {
     VisaAuthorizationResponse response = parserService.parse(payload);
     String key = correlationKey(response.terminalId(), String.valueOf(response.nsu()));
     CanonicalTransaction transaction = correlator.claim(key);

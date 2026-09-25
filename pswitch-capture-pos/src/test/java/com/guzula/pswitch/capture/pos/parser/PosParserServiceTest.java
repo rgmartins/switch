@@ -2,6 +2,7 @@ package com.guzula.pswitch.capture.pos.parser;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -22,8 +23,8 @@ import com.guzula.pswitch.comum.keyblock.KeyblockService;
 import com.guzula.pswitch.comum.tableproductunique.TableProductUniqueService;
 import com.guzula.pswitch.comum.tableresponse.TableResponseService;
 import com.guzula.pswitch.comum.terminal.TerminalService;
-import com.guzula.pswitch.comunicacao.hsm.HsmRequestManager;
 import com.guzula.pswitch.external.hsm.HsmG0Protocol;
+import com.guzula.pswitch.external.hsm.HsmRequestManager;
 import com.guzula.pswitch.external.hsm.HsmSeProtocol;
 import com.guzula.pswitch.external.hsm.HsmService;
 import com.guzula.pswitch.nucleo.BrandHandler;
@@ -34,7 +35,6 @@ import com.guzula.pswitch.registry.bin.BinConfig;
 import com.guzula.pswitch.registry.keyblock.KeyblockConfig;
 import com.guzula.pswitch.registry.tableproductunique.TableProductUniqueConfig;
 import com.guzula.pswitch.registry.terminal.TerminalConfig;
-import com.guzula.pswitch.shared.port.OutboundPayloadSender;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -245,35 +245,55 @@ class PosParserServiceTest {
   }
 
   @Test
-  void posServiceEchoesReceivedBytesAndExecutesSeAndG0OnHsm() {
+  void posServiceEchoesReceivedBytesAndExecutesSeAndG0OnHsm() throws InterruptedException {
     byte[] payload = HexFormat.of().parseHex(MESSAGE_HEX);
     Map<String, byte[]> sent = new ConcurrentHashMap<>();
-    AtomicReference<HsmService> hsmReference = new AtomicReference<>();
-    OutboundPayloadSender payloadSender =
-        (connectionId, response) -> {
-          sent.put(connectionId, response);
-          if ("HSM".equals(connectionId)) {
-            String header = new String(response, 0, 4, StandardCharsets.US_ASCII);
-            String command = new String(response, 4, 2, StandardCharsets.US_ASCII);
-            sent.put("HSM-" + command, response);
-            if ("SE".equals(command)) {
-              String track = "4123456789012349=29122010000000000000";
-              byte[] sf =
-                  (header + "SF00" + "%05d".formatted(track.length()) + track)
-                      .getBytes(StandardCharsets.US_ASCII);
-              hsmReference.get().handleInbound(connectionId, sf);
-            } else if ("G0".equals(command)) {
-              byte[] g1 = (header + "G10016FEDCBA9876543210").getBytes(StandardCharsets.US_ASCII);
-              hsmReference.get().handleInbound(connectionId, g1);
-            }
-          }
-        };
+    StringRedisTemplate redis = redisTemplate();
+    redis.delete("hsm:pedidos");
+    redis.delete("pos:pedidos");
+    redis.delete("pos:respostas");
+
+    // Simula o HsmConnectionBridge (roda no processo de comunicação, separado deste): atende, em
+    // sequência, o pedido SE (decryptCardData) e depois o G0 (translatePinBlock) que o fluxo real
+    // dispara um após o outro.
+    Thread hsmSimulator =
+        new Thread(
+            () -> {
+              for (int exchange = 0; exchange < 2; exchange++) {
+                String hexRequest =
+                    redis.opsForList().leftPop("hsm:pedidos", Duration.ofSeconds(5));
+                if (hexRequest == null) {
+                  return;
+                }
+                byte[] request = HexFormat.of().parseHex(hexRequest);
+                String header = new String(request, 0, 4, StandardCharsets.US_ASCII);
+                String command = new String(request, 4, 2, StandardCharsets.US_ASCII);
+                sent.put("HSM-" + command, request);
+
+                byte[] response;
+                if ("SE".equals(command)) {
+                  String track = "4123456789012349=29122010000000000000";
+                  response =
+                      (header + "SF00" + "%05d".formatted(track.length()) + track)
+                          .getBytes(StandardCharsets.US_ASCII);
+                } else if ("G0".equals(command)) {
+                  response =
+                      (header + "G10016FEDCBA9876543210").getBytes(StandardCharsets.US_ASCII);
+                } else {
+                  return;
+                }
+                redis
+                    .opsForList()
+                    .rightPush("hsm:resposta:" + header, HexFormat.of().formatHex(response));
+              }
+            });
+    hsmSimulator.start();
+
     HsmService hsmService =
         new HsmService(
-            new HsmRequestManager(payloadSender, redisTemplate(), Duration.ofSeconds(1)),
+            new HsmRequestManager(redis, Duration.ofSeconds(2)),
             new HsmSeProtocol(),
             new HsmG0Protocol());
-    hsmReference.set(hsmService);
     // NucleoService precisa da lista de ChannelResponder (que inclui este próprio PosService,
     // ainda não construído) só dentro de handleResponse — por isso a resolução preguiçosa via
     // ObjectProvider + referência mutável, do mesmo jeito que o Spring resolve em produção.
@@ -284,7 +304,6 @@ class PosParserServiceTest {
         .thenAnswer(invocation -> List.of((ChannelResponder) posServiceReference.get()));
     PosService service =
         new PosService(
-            payloadSender,
             parser,
             new PosMapperService(),
             new NucleoService(
@@ -340,12 +359,22 @@ class PosParserServiceTest {
                 new RegrasService(),
                 new TableResponseService(),
                 emptyBrandHandlers(),
-                channelResponders));
+                channelResponders),
+            redis);
     posServiceReference.set(service);
+    service.start();
 
-    service.handleInbound("connection-1", payload);
+    redis
+        .opsForList()
+        .rightPush("pos:pedidos", "connection-1|" + HexFormat.of().formatHex(payload));
+    String responseMessage = redis.opsForList().leftPop("pos:respostas", Duration.ofSeconds(5));
+    hsmSimulator.join();
 
-    assertArrayEquals(payload, sent.get("connection-1"));
+    assertNotNull(responseMessage);
+    int separatorIndex = responseMessage.indexOf('|');
+    assertEquals("connection-1", responseMessage.substring(0, separatorIndex));
+    byte[] responsePayload = HexFormat.of().parseHex(responseMessage.substring(separatorIndex + 1));
+    assertArrayEquals(payload, responsePayload);
     assertEquals("SE", new String(sent.get("HSM-SE"), 4, 2, StandardCharsets.US_ASCII));
     assertEquals("G0", new String(sent.get("HSM-G0"), 4, 2, StandardCharsets.US_ASCII));
   }

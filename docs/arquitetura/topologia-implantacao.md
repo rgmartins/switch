@@ -211,12 +211,30 @@ autorização. Grupos diferentes não têm essa restrição — cada um pode est
 
 ## Estado atual
 
-Nenhuma dessas decisões está implementada — o código de hoje roda como um único processo
-(`pswitch-app`) sem separação de grupos, listeners ou filas. Este documento existe para não perder o
-raciocínio até que o volume real e o número de conexões contratadas com cada bandeira tornem essa uma
-decisão concreta.
+**Implementado:** a separação listener/switch, para as três conexões (POS, Visa, HSM), rodando como
+dois processos de verdade — `pswitch-comunicacao` (segura os sockets) e `pswitch-app` (processa,
+zero dependência de `pswitch-comunicacao` na árvore de módulos). A correlação atravessa filas Redis
+simples (listas, não Streams — `LPUSH`/`RPUSH`/`BLPOP`), uma por bandeira/canal:
+
+- HSM: `hsm:pedidos` / `hsm:resposta:<header>` — bloqueante do lado do switch
+  (`HsmRequestManager`, em `pswitch-external`).
+- Visa: `visa:pedidos` / `visa:respostas` — fogo-e-esquece, com uma thread consumidora contínua no
+  switch (`VisaService`, em `pswitch-brand-visa`).
+- POS: `pos:pedidos` / `pos:respostas` — mensagens carregam `connectionId|payload`, já que um
+  listener atende muitos terminais ao mesmo tempo (`PosService`, em `pswitch-capture-pos`).
+
+Validado de ponta a ponta: os dois processos rodando separados, uma transação real passando por
+POS → HSM (SE e G0) → Visa → aprovação, sem nenhuma chamada de método Java atravessando processo —
+só filas.
+
+**Ainda não implementado:** o modelo de múltiplas réplicas fungíveis (o "switch" continua sendo uma
+única instância do `pswitch-app`) e múltiplos grupos co-localizados em nuvens/regiões diferentes. O
+que existe hoje é o equivalente a **um grupo só, com uma réplica só** — a base sobre a qual o modelo
+de grupos deste documento se apoiaria, mas a escala horizontal em si (N réplicas, N grupos) ainda não
+foi construída nem testada.
 
 Uma versão anterior deste documento explorava um coordenador dedicado por grupo, falando TCP direto
-com cada réplica e mantendo dois mapas de correlação em memória. Foi descartado em favor do desenho
-acima porque o Redis Streams já resolve nativamente "quem está livre processa" e a reentrega de
-mensagens não confirmadas, exigindo menos código de correlação escrito à mão.
+com cada réplica e mantendo dois mapas de correlação em memória, e depois Redis Streams como
+alternativa. Nenhuma das duas foi implementada — o que existe usa listas simples do Redis
+(`LPUSH`/`BLPOP`), suficiente para uma réplica só; migrar para Streams (ou outra forma de
+"quem está livre processa" entre várias réplicas) continua sendo o passo seguinte, não feito ainda.

@@ -8,7 +8,11 @@ import org.springframework.boot.ansi.AnsiColor;
 import org.springframework.boot.ansi.AnsiOutput;
 import org.springframework.stereotype.Component;
 
-/** Inicia as conexões TCP outbound declaradas na configuração da aplicação. */
+/**
+ * Inicia as conexões TCP outbound declaradas na configuração da aplicação. Ver {@link
+ * TcpTransportConfiguration} — cada processo só abre o que estiver no seu próprio {@code
+ * application.yml}.
+ */
 @Component
 public class TcpClientsConfiguration {
 

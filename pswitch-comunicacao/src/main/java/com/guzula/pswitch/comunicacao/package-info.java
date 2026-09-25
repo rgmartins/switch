@@ -1,22 +1,32 @@
 /**
- * Módulo de conexões, separado do switch.
+ * Módulo de conexões — roda como processo próprio ({@link
+ * com.guzula.pswitch.comunicacao.ComunicacaoApplication}), separado do switch ({@code
+ * pswitch-app}).
  *
- * <p>Segura as conexões TCP de verdade — hoje, os listeners/clients configurados em {@code
- * application.yml} (POS, Visa, HSM) e o roteamento pra cada {@link
- * com.guzula.pswitch.shared.port.InboundPayloadHandler InboundPayloadHandler}/{@link
- * com.guzula.pswitch.shared.port.OutboundPayloadSender OutboundPayloadSender} implementado pelos
- * módulos de negócio ({@code PosService}, {@code VisaService}, {@code HsmService}...).
+ * <p>As três conexões (POS, Visa, HSM) estão migradas — o {@code pswitch-app} não abre socket
+ * algum, só fala com as filas do Redis:
  *
- * <p>Esse acoplamento com quem processa continua indireto, via essas portas (interfaces) — este
- * módulo nunca depende de {@code pswitch-capture-pos}, {@code pswitch-brand-visa} ou {@code
- * pswitch-external} diretamente, só de {@code pswitch-shared} e {@code pswitch-transport}. É por
- * isso que a extração desses arquivos de dentro do {@code pswitch-app} não trouxe nenhuma
- * dependência nova.
+ * <ul>
+ *   <li>{@link com.guzula.pswitch.comunicacao.pos.PosConnectionBridge} — segura o listener POS
+ *       (muitas conexões simultâneas, uma por terminal). Fila carrega {@code
+ *       "<connectionId>|<payload hex>"} nos dois sentidos ({@code pos:pedidos}/{@code
+ *       pos:respostas}), porque cada resposta precisa voltar pro terminal certo.
+ *   <li>{@link com.guzula.pswitch.comunicacao.visa.VisaConnectionBridge} — segura a conexão com a
+ *       Visa. Totalmente burra: não entende ISO 8583, só repassa bytes ({@code visa:pedidos}/{@code
+ *       visa:respostas}) — quem correlaciona é o próprio switch (VisaService, com uma thread
+ *       consumidora contínua, já que autorizar é fogo-e-esquece).
+ *   <li>{@link com.guzula.pswitch.comunicacao.hsm.HsmConnectionBridge} — segura a conexão com o
+ *       HSM. Sabe ler o header de 4 dígitos pra endereçar a resposta ({@code hsm:pedidos}/{@code
+ *       hsm:resposta:<header>}) — o switch (HsmRequestManager, em pswitch-external) bloqueia
+ *       esperando, então não precisa de thread consumidora própria.
+ * </ul>
  *
- * <p>Estado atual: as conexões continuam sendo entregues à lógica de negócio por chamada de método
- * Java direta (mesmo processo), não por fila — a etapa de trocar isso por Redis Streams (ver
- * docs/arquitetura/topologia-implantacao.md) ainda não foi feita. Esta extração é o passo
- * intermediário: separar fisicamente quem segura o socket de quem processa, antes de separar também
- * o processo.
+ * <p>Este módulo nunca depende de {@code pswitch-capture-pos}, {@code pswitch-brand-visa}, {@code
+ * pswitch-external} ou {@code pswitch-app} — só de {@code pswitch-shared} e {@code
+ * pswitch-transport}. A relação é sempre inversa (o switch depende daqui só pelas portas genéricas,
+ * nunca o contrário) — por isso {@code pswitch-app} não carrega vestígio nenhum deste módulo na sua
+ * árvore de dependências.
+ *
+ * <p>Ver docs/arquitetura/topologia-implantacao.md para o raciocínio completo.
  */
 package com.guzula.pswitch.comunicacao;

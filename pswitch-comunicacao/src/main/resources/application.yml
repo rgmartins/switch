@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: switch-comunicacao
+  output:
+    ansi:
+      enabled: always
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+pswitch:
+  tcp:
+    listeners:
+      - channel: POS
+        handler: POS
+        host: 0.0.0.0
+        port: 9000
+    clients:
+      - channel: HSM
+        handler: HSM
+        host: ${PSWITCH_HSM_HOST:127.0.0.1}
+        port: ${PSWITCH_HSM_PORT:6002}
+        reconnect-delay-milliseconds: ${PSWITCH_HSM_RECONNECT_DELAY_MS:5000}
+      - channel: VISA
+        handler: VISA
+        host: ${PSWITCH_VISA_HOST:127.0.0.1}
+        port: ${PSWITCH_VISA_PORT:5000}
+        reconnect-delay-milliseconds: ${PSWITCH_VISA_RECONNECT_DELAY_MS:5000}
+
+# POS, Visa e HSM foram todos migrados pra este processo — o pswitch-app não abre nenhuma conexão
+# TCP mais, só fala com as filas do Redis. Ver docs/arquitetura/topologia-implantacao.md.

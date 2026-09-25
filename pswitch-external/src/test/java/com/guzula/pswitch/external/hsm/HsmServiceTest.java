@@ -4,50 +4,57 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.guzula.pswitch.comunicacao.hsm.HsmRequestManager;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.UnaryOperator;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
- * Requer um Redis acessível em localhost:6379 (ver switch-docker/docker-compose.yml) — a correlação
- * do {@link HsmRequestManager} agora mora lá, não em memória do processo.
+ * Requer um Redis acessível em localhost:6379 (ver switch-docker/docker-compose.yml). O {@link
+ * HsmRequestManager} não fala mais com o socket — publica o pedido em {@code hsm:pedidos} e espera
+ * a resposta em {@code hsm:resposta:<header>}. Aqui, uma thread simula o papel do {@code
+ * HsmConnectionBridge} (que na vida real roda no processo de comunicação, separado deste).
  */
 class HsmServiceTest {
 
   private static final String SOURCE_KEY = "0123456789ABCDEFFEDCBA9876543210";
   private static final String DESTINATION_KEY = "FEDCBA98765432100123456789ABCDEF";
+  private static final String REQUEST_QUEUE_KEY = "hsm:pedidos";
   private static final StringRedisTemplate REDIS = redisTemplate();
 
+  @BeforeEach
+  void limpaFilaPendente() {
+    REDIS.delete(REQUEST_QUEUE_KEY);
+  }
+
   @Test
-  void sendsSeWaitsForSfAndPopulatesCard() {
-    AtomicReference<byte[]> requestSent = new AtomicReference<>();
-    AtomicReference<HsmService> serviceReference = new AtomicReference<>();
+  void sendsSeWaitsForSfAndPopulatesCard() throws InterruptedException {
     String track = "4123456789012349=29122010000000000000";
+    AtomicReference<byte[]> requestSent = new AtomicReference<>();
+    Thread hsmSimulator =
+        simulateHsm(
+            request -> {
+              requestSent.set(request.clone());
+              String header = new String(request, 0, 4, StandardCharsets.US_ASCII);
+              return (header + "SF00" + "%05d".formatted(track.length()) + track)
+                  .getBytes(StandardCharsets.US_ASCII);
+            });
+
     HsmService service =
         new HsmService(
-            new HsmRequestManager(
-                (connectionId, payload) -> {
-                  assertEquals("HSM", connectionId);
-                  requestSent.set(payload.clone());
-                  String header = new String(payload, 0, 4, StandardCharsets.US_ASCII);
-                  byte[] response =
-                      (header + "SF00" + "%05d".formatted(track.length()) + track)
-                          .getBytes(StandardCharsets.US_ASCII);
-                  serviceReference.get().handleInbound(connectionId, response);
-                },
-                REDIS,
-                Duration.ofSeconds(1)),
+            new HsmRequestManager(REDIS, Duration.ofSeconds(2)),
             new HsmSeProtocol(),
             new HsmG0Protocol());
-    serviceReference.set(service);
     CanonicalTransaction canonical = canonical();
 
     service.decryptCardData(canonical, SOURCE_KEY);
+    hsmSimulator.join();
 
     byte[] request = requestSent.get();
     String requestPrefix = new String(request, 0, 69, StandardCharsets.US_ASCII);
@@ -62,9 +69,10 @@ class HsmServiceTest {
 
   @Test
   void failsWhenSfDoesNotArriveBeforeTimeout() {
+    // Ninguém simula o HSM aqui — o pedido fica publicado em hsm:pedidos, sem resposta.
     HsmService service =
         new HsmService(
-            new HsmRequestManager((connectionId, payload) -> {}, REDIS, Duration.ofMillis(20)),
+            new HsmRequestManager(REDIS, Duration.ofMillis(20)),
             new HsmSeProtocol(),
             new HsmG0Protocol());
 
@@ -76,28 +84,26 @@ class HsmServiceTest {
   }
 
   @Test
-  void sendsG0WaitsForG1AndUpdatesPinBlock() {
-    AtomicReference<byte[]> requestSent = new AtomicReference<>();
-    AtomicReference<HsmService> serviceReference = new AtomicReference<>();
+  void sendsG0WaitsForG1AndUpdatesPinBlock() throws InterruptedException {
     String translatedPinBlock = "FEDCBA9876543210";
+    AtomicReference<byte[]> requestSent = new AtomicReference<>();
+    Thread hsmSimulator =
+        simulateHsm(
+            request -> {
+              requestSent.set(request.clone());
+              String header = new String(request, 0, 4, StandardCharsets.US_ASCII);
+              return (header + "G10016" + translatedPinBlock).getBytes(StandardCharsets.US_ASCII);
+            });
+
     HsmService service =
         new HsmService(
-            new HsmRequestManager(
-                (connectionId, payload) -> {
-                  requestSent.set(payload.clone());
-                  String header = new String(payload, 0, 4, StandardCharsets.US_ASCII);
-                  byte[] response =
-                      (header + "G10016" + translatedPinBlock).getBytes(StandardCharsets.US_ASCII);
-                  serviceReference.get().handleInbound(connectionId, response);
-                },
-                REDIS,
-                Duration.ofSeconds(1)),
+            new HsmRequestManager(REDIS, Duration.ofSeconds(2)),
             new HsmSeProtocol(),
             new HsmG0Protocol());
-    serviceReference.set(service);
     CanonicalTransaction canonical = canonical();
 
     service.translatePinBlock(canonical, SOURCE_KEY, DESTINATION_KEY);
+    hsmSimulator.join();
 
     String request = new String(requestSent.get(), StandardCharsets.US_ASCII);
     assertEquals(
@@ -107,6 +113,31 @@ class HsmServiceTest {
             + "A05FFFFF1700168A060069C0123456789ABCDEF0101345678901234%01",
         request);
     assertEquals(translatedPinBlock, canonical.getSecurity().getPinBlock());
+  }
+
+  /**
+   * Simula o {@code HsmConnectionBridge}: numa thread separada, espera um pedido aparecer em {@code
+   * hsm:pedidos}, gera a resposta com {@code responder} e publica em {@code hsm:resposta:<header>}
+   * — exatamente o papel que, em produção, roda no processo de comunicação, não neste.
+   */
+  private static Thread simulateHsm(UnaryOperator<byte[]> responder) {
+    Thread thread =
+        new Thread(
+            () -> {
+              String hexRequest =
+                  REDIS.opsForList().leftPop(REQUEST_QUEUE_KEY, Duration.ofSeconds(5));
+              if (hexRequest == null) {
+                return;
+              }
+              byte[] request = HexFormat.of().parseHex(hexRequest);
+              byte[] response = responder.apply(request);
+              String header = new String(response, 0, 4, StandardCharsets.US_ASCII);
+              REDIS
+                  .opsForList()
+                  .rightPush("hsm:resposta:" + header, HexFormat.of().formatHex(response));
+            });
+    thread.start();
+    return thread;
   }
 
   private CanonicalTransaction canonical() {

@@ -37,12 +37,15 @@ Na resposta, a transação percorre o caminho inverso até chegar novamente ao t
 - Node.js 22 ou superior (para executar os simuladores localmente)
 - Docker (pra subir o MongoDB via [`switch-docker`](../../../switch-docker))
 
-## 0. Subir a infraestrutura (MongoDB)
+## 0. Subir a infraestrutura (MongoDB, Redis)
 
 ```bash
 cd D:\adq\switch-docker
 docker compose up -d
 ```
+
+O Redis é usado pela correlação de resposta assíncrona (Visa, HSM) e pelas filas entre o
+`pswitch-comunicacao` e o switch — ver docs/arquitetura/topologia-implantacao.md.
 
 ## 1. Instalar os módulos no repositório local
 
@@ -53,7 +56,38 @@ cd D:\adq\switch
 mvn install -DskipTests
 ```
 
-## 2. Rodar a aplicação
+## 2. Rodar o processo de comunicação (`pswitch-comunicacao`)
+
+Processo separado do switch — segura as três conexões reais (POS, Visa, HSM). O `pswitch-app` não
+abre socket nenhum; só fala com filas do Redis. Precisa estar de pé **antes** do switch, senão os
+pedidos ficam esperando na fila até estourar timeout, e nenhum terminal POS consegue conectar
+(quem ouve a porta 9000 agora é este processo, não o switch).
+
+```bash
+cd D:\adq\switch\pswitch-comunicacao
+mvn spring-boot:run
+```
+
+Esperado ver no final:
+
+```
+Cliente TCP de HSM configurado para 127.0.0.1:6002
+Cliente TCP de VISA configurado para 127.0.0.1:5000
+Servidor TCP de POS ouvindo em 0.0.0.0:9000
+Started ComunicacaoApplication in X seconds
+```
+
+Pra rodar o `.jar` já empacotado (sem `mvn spring-boot:run`), o executável tem um classificador
+próprio — o `.jar` sem classificador é só a biblioteca que `pswitch-external` usa em tempo de
+compilação, não roda sozinho:
+
+```bash
+cd D:\adq\switch\pswitch-comunicacao
+mvn -DskipTests package
+java -jar target\pswitch-comunicacao-0.1.0-SNAPSHOT-exec.jar
+```
+
+## 3. Rodar o switch (`pswitch-app`)
 
 ```bash
 cd D:\adq\switch\pswitch-app
@@ -68,9 +102,12 @@ Esperado ver no final:
 Started SwitchApplication in X seconds
 ```
 
+Repare que **não aparece nenhuma linha de "Cliente TCP"/"Servidor TCP"** — esse processo não abre
+socket nenhum; só fala com as filas do Redis que o `pswitch-comunicacao` (passo 2) atende.
+
 Se aparecer erro de conexão com `localhost:27017` (MongoDB), é porque o passo 0 (`docker compose up -d` no `switch-docker`) não foi feito — não derruba a aplicação, mas as funcionalidades que dependem do Mongo (registries, storage) não vão funcionar.
 
-## 3. Subir o simulador HSM
+## 4. Subir o simulador HSM
 
 Em outro PowerShell, execute:
 
@@ -85,7 +122,7 @@ Por padrão, o simulador HSM fica disponível em `0.0.0.0:6002`. O log esperado 
 [HSM] Servidor TCP ativo em 0.0.0.0:6002
 ```
 
-Ao iniciar, o `switch` conecta automaticamente ao HSM em `127.0.0.1:6002`. Se o simulador ainda não estiver disponível, o cliente mantém o `switch` ativo e tenta reconectar a cada 5 segundos. O destino pode ser alterado antes de iniciar a aplicação:
+Ao iniciar, é o **`pswitch-comunicacao`** (não mais o `pswitch-app`) que conecta automaticamente ao HSM em `127.0.0.1:6002` — o mesmo vale pra Visa (`127.0.0.1:5000`, via `switch-simuladores`) e pro listener de POS (porta 9000): as três conexões são desse processo agora, nenhuma é do switch. Por isso o passo 2 (comunicação) idealmente sobe depois dos simuladores, embora não seja obrigatório: se um simulador ainda não estiver disponível, o cliente mantém o processo ativo e tenta reconectar a cada 5 segundos. O destino pode ser alterado antes de iniciar o `pswitch-comunicacao` (o mesmo `application.yml`/variáveis, agora lidos por esse processo em vez do `pswitch-app`):
 
 ```powershell
 $env:PSWITCH_HSM_HOST = "127.0.0.1"
@@ -93,7 +130,17 @@ $env:PSWITCH_HSM_PORT = "6002"
 $env:PSWITCH_HSM_RECONNECT_DELAY_MS = "5000"
 ```
 
-Neste estágio, essa conexão valida apenas a disponibilidade do canal TCP. Nenhum comando HSM é emitido pelo módulo de transporte.
+Comandos de verdade são emitidos normalmente pelo switch durante uma transação, atravessando o
+Redis entre os dois processos — cada bandeira/canal com seu par de filas:
+
+- HSM: `hsm:pedidos` / `hsm:resposta:<header>` (o switch bloqueia esperando, por isso a correlação é
+  por header).
+- Visa: `visa:pedidos` / `visa:respostas` (fogo-e-esquece — o switch tem uma thread consumindo
+  continuamente, correlacionando por terminalId+NSU).
+- POS: `pos:pedidos` / `pos:respostas` (cada mensagem carrega `connectionId|payload em hex`, porque
+  tem um terminal diferente por conexão).
+
+Ver docs/arquitetura/topologia-implantacao.md.
 
 Para executar com Docker:
 
@@ -119,7 +166,7 @@ Para encerrar o simulador executado por npm, pressione `Ctrl+C`. No modo Docker,
 docker compose down
 ```
 
-## 4. Testar com o simulador POS
+## 5. Testar com o simulador POS
 
 Com a aplicação em execução, abra outro PowerShell na raiz do projeto e execute:
 

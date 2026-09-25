@@ -22,10 +22,6 @@
     </dependency>
     <dependency>
       <groupId>com.guzula.pswitch</groupId>
-      <artifactId>pswitch-transport</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.guzula.pswitch</groupId>
       <artifactId>pswitch-nucleo</artifactId>
     </dependency>
     <dependency>
