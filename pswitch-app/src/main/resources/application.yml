@@ -40,6 +40,6 @@ pswitch:
 
   visa:
     response-timeout: ${PSWITCH_VISA_RESPONSE_TIMEOUT:10s}
-    timeout-sweep-interval: ${PSWITCH_VISA_TIMEOUT_SWEEP_INTERVAL_MS:1s}
+    timeout-sweep-interval: ${PSWITCH_VISA_TIMEOUT_SWEEP_INTERVAL_MS:1000}
 
 # Outros endpoints TCP serão adicionados conforme os respectivos módulos forem portados.
