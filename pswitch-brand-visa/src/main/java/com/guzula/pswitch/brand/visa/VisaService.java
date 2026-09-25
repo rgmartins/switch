@@ -1,34 +1,28 @@
 package com.guzula.pswitch.brand.visa;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.guzula.pswitch.brand.visa.packer.VisaPackerService;
 import com.guzula.pswitch.brand.visa.parser.VisaAuthorizationResponse;
 import com.guzula.pswitch.brand.visa.parser.VisaParserService;
 import com.guzula.pswitch.comum.tableresponse.TableResponseService;
 import com.guzula.pswitch.nucleo.BrandHandler;
 import com.guzula.pswitch.nucleo.NucleoService;
+import com.guzula.pswitch.nucleo.correlation.RedisPendingCorrelator;
 import com.guzula.pswitch.shared.SwitchConstants;
 import com.guzula.pswitch.shared.domain.CanonicalTransaction;
 import com.guzula.pswitch.shared.port.InboundPayloadHandler;
 import com.guzula.pswitch.shared.port.OutboundPayloadSender;
 import com.guzula.pswitch.shared.rules.Obs;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.logging.Logger;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.Cursor;
-import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
  * Referência: visa.service.ts (guzula-switch). Correlaciona request/response outbound por
- * terminalId+NSU — via Redis (chave {@code visa:pendente:<chave>}), igual ao original, para que a
- * resposta possa ser processada por uma réplica diferente da que enviou o pedido. Ver
- * docs/arquitetura/topologia-implantacao.md.
+ * terminalId+NSU usando {@link RedisPendingCorrelator}, para que a resposta possa ser processada
+ * por uma réplica diferente da que enviou o pedido. Ver docs/arquitetura/topologia-implantacao.md.
  *
  * <p>{@link #sweepExpiredAuthorizations} varre periodicamente as transações nunca respondidas
  * dentro de {@code responseTimeout} e as converte em negação — sem isso, uma bandeira que nunca
@@ -49,12 +43,8 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
   private final OutboundPayloadSender payloadSender;
   private final NucleoService nucleoService;
   private final TableResponseService tableResponseService;
-  private final StringRedisTemplate redisTemplate;
+  private final RedisPendingCorrelator<CanonicalTransaction> correlator;
   private final Duration responseTimeout;
-  private final ObjectMapper objectMapper =
-      new ObjectMapper()
-          .registerModule(new JavaTimeModule())
-          .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
   public VisaService(
       VisaPackerService packerService,
@@ -69,7 +59,8 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
     this.payloadSender = payloadSender;
     this.nucleoService = nucleoService;
     this.tableResponseService = tableResponseService;
-    this.redisTemplate = redisTemplate;
+    this.correlator =
+        new RedisPendingCorrelator<>(redisTemplate, PENDING_KEY_PREFIX, CanonicalTransaction.class);
     this.responseTimeout = responseTimeout;
   }
 
@@ -86,7 +77,7 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
   @Override
   public void authorize(CanonicalTransaction transaction) {
     String key = correlationKey(transaction.getTerminalId(), transaction.getNsu());
-    storePending(key, new PendingAuthorization(transaction, Instant.now()));
+    correlator.store(key, transaction, responseTimeout.plus(PENDING_TTL_BUFFER));
     byte[] request = packerService.pack(transaction);
     payloadSender.send(HANDLER_NAME, request);
     LOGGER.info(
@@ -99,8 +90,8 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
   public void handleInbound(String connectionId, byte[] payload) {
     VisaAuthorizationResponse response = parserService.parse(payload);
     String key = correlationKey(response.terminalId(), String.valueOf(response.nsu()));
-    PendingAuthorization pending = claimPending(key);
-    if (pending == null) {
+    CanonicalTransaction transaction = correlator.claim(key);
+    if (transaction == null) {
       LOGGER.warning(
           () ->
               "[VisaService] Resposta sem transação correspondente (chave %s): %s"
@@ -108,12 +99,12 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
       return;
     }
 
-    populateResponse(pending.transaction(), response);
+    populateResponse(transaction, response);
     LOGGER.info(
         () ->
             "[VisaService] Resposta da Visa recebida: código=%s, autorização=%s, chave=%s"
                 .formatted(response.responseCode(), response.authorizationCode(), key));
-    nucleoService.handleResponse(pending.transaction());
+    nucleoService.handleResponse(transaction);
   }
 
   /**
@@ -121,28 +112,10 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
    */
   @Scheduled(fixedDelayString = "${pswitch.visa.timeout-sweep-interval:1s}")
   void sweepExpiredAuthorizations() {
-    Instant now = Instant.now();
-    ScanOptions scanOptions =
-        ScanOptions.scanOptions().match(PENDING_KEY_PREFIX + "*").count(100).build();
-    try (Cursor<String> cursor = redisTemplate.scan(scanOptions)) {
-      while (cursor.hasNext()) {
-        String redisKey = cursor.next();
-        PendingAuthorization candidate = peekPending(redisKey);
-        if (candidate == null
-            || Duration.between(candidate.sentAt(), now).compareTo(responseTimeout) < 0) {
-          continue;
-        }
-        // reivindica de forma atômica só agora — se handleInbound já pegou essa mesma chave nesse
-        // meio tempo, claimPendingByRedisKey devolve null e não fazemos nada.
-        PendingAuthorization claimed = claimPendingByRedisKey(redisKey);
-        if (claimed != null) {
-          timeout(claimed.transaction(), redisKey.substring(PENDING_KEY_PREFIX.length()));
-        }
-      }
-    }
+    correlator.sweepExpired(responseTimeout, this::timeout);
   }
 
-  private void timeout(CanonicalTransaction transaction, String key) {
+  private void timeout(String key, CanonicalTransaction transaction) {
     tableResponseService.populateResponseFromRule(transaction, Obs.RULE_091_BRAND_TIMEOUT);
     LOGGER.warning(
         () -> "[VisaService] Timeout aguardando resposta da Visa (chave %s)".formatted(key));
@@ -165,45 +138,6 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
     transaction.setResponse(response);
   }
 
-  private void storePending(String correlationKey, PendingAuthorization pending) {
-    redisTemplate
-        .opsForValue()
-        .set(
-            PENDING_KEY_PREFIX + correlationKey,
-            writeJson(pending),
-            responseTimeout.plus(PENDING_TTL_BUFFER));
-  }
-
-  private PendingAuthorization peekPending(String redisKey) {
-    String json = redisTemplate.opsForValue().get(redisKey);
-    return json == null ? null : readJson(json);
-  }
-
-  private PendingAuthorization claimPending(String correlationKey) {
-    return claimPendingByRedisKey(PENDING_KEY_PREFIX + correlationKey);
-  }
-
-  private PendingAuthorization claimPendingByRedisKey(String redisKey) {
-    String json = redisTemplate.opsForValue().getAndDelete(redisKey);
-    return json == null ? null : readJson(json);
-  }
-
-  private String writeJson(PendingAuthorization pending) {
-    try {
-      return objectMapper.writeValueAsString(pending);
-    } catch (Exception exception) {
-      throw new IllegalStateException("Falha ao serializar autorização pendente", exception);
-    }
-  }
-
-  private PendingAuthorization readJson(String json) {
-    try {
-      return objectMapper.readValue(json, PendingAuthorization.class);
-    } catch (Exception exception) {
-      throw new IllegalStateException("Falha ao desserializar autorização pendente", exception);
-    }
-  }
-
   private static String correlationKey(String terminalId, String nsu) {
     return terminalId + nsu;
   }
@@ -215,6 +149,4 @@ public class VisaService implements BrandHandler, InboundPayloadHandler {
     }
     return hex.toString();
   }
-
-  private record PendingAuthorization(CanonicalTransaction transaction, Instant sentAt) {}
 }
